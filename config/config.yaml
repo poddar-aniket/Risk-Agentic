@@ -1,28 +1,25 @@
-app:
-  name: "RiskRadar"
-  environment: "development"
-  scheduler_interval_hours: 3
-
 llm:
-  provider: "gemini"
-  model: "gemini-2.5-flash-lite"
-  temperature: 0.2
+  provider: gemini
+  model_name: gemini-2.5-flash-lite
+
+data_sources:
+  active:
+    - type: newsdata
+      params:
+        query: "supply chain disruption India"
+    - type: rss
+      params:
+        feed_urls: []
+    - type: openweather
+      params:
+        locations: []
 
 rag:
-  vector_store_path: "./data/chroma_db"
-  embedding_model: "all-MiniLM-L6-v2"
+  persist_directory: ./data/chroma
+  embedding_model: all-MiniLM-L6-v2
+  top_k: 5
 
-database:
-  url: "sqlite:///./data/riskradar.db"
-
-ingestion:
-  active_sources:
-    - "newsdata"
-    - "rss"
-    - "openweather"
-  rss_feeds:
-    # Example feed, can be replaced later
-    - "http://feeds.bbci.co.uk/news/world/rss.xml"
-
-thresholds:
-  supervisor_confidence: 7
+orchestration:
+  macro_loop_interval_hours: 3
+  micro_loop_max_iterations: 5
+  confidence_threshold: 7.0
