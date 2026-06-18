@@ -1,0 +1,28 @@
+# FastAPI Backend
+fastapi
+uvicorn[standard]
+
+# LLM & Orchestration
+langchain
+langgraph
+langchain-google-genai
+
+# Validation & Config
+pydantic
+pydantic-settings
+pyyaml
+
+# Ingestion
+httpx
+feedparser
+
+# RAG
+chromadb
+sentence-transformers
+
+# Database & ORM
+sqlalchemy
+alembic
+
+# Scheduling
+apscheduler
