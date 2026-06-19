@@ -1,25 +1,93 @@
-"""
-RAGClient — ChromaDB wrapper. Called directly from agent code (no LangChain
-RAG chains) so it's clear exactly what context each agent receives.
+# app/rag/client.py
 
-TODO (Day 2 — owner: poddar-aniket):
-- Initialize a persistent ChromaDB client + collection at `persist_directory`.
-- Use sentence-transformers (all-MiniLM-L6-v2, local, free) for embeddings.
-- Implement add() for seeding/storing new records (events, risk assessments,
-  decisions, outcomes, human rejections + reasons, supplier history).
-- Implement query(top_k) for retrieval.
-- IMPORTANT: ash119821's Risk Analysis Agent depends on this interface —
-  agree on its method signatures by 11am Day 2, before either of you is
-  deep into your own piece.
-"""
+import chromadb
+from chromadb.config import Settings
+from sentence_transformers import SentenceTransformer
+from typing import List, Dict, Any
+import os
 
 
 class RAGClient:
-    def __init__(self, persist_directory: str = "./data/chroma"):
+    """
+    ChromaDB-backed vector store client for RiskRadar.
+    Handles embedding, storing, and querying past events,
+    risk assessments, decisions, outcomes, and rejections.
+    """
+
+    COLLECTION_NAMES = [
+        "past_events",
+        "risk_assessments",
+        "decisions",
+        "outcomes",
+        "rejections",
+        "supplier_history",
+    ]
+
+    def __init__(self, persist_directory: str = "./data/chroma_db"):
         self.persist_directory = persist_directory
+        os.makedirs(persist_directory, exist_ok=True)
 
-    def add(self, documents: list[str], metadatas: list[dict], ids: list[str]) -> None:
-        raise NotImplementedError("Wire up ChromaDB add — Day 2")
+        self.client = chromadb.PersistentClient(path=persist_directory)
+        self.embedder = SentenceTransformer("all-MiniLM-L6-v2")
+        self._collections: Dict[str, chromadb.Collection] = {}
+        self._init_collections()
 
-    def query(self, query_text: str, top_k: int = 5) -> list[dict]:
-        raise NotImplementedError("Wire up ChromaDB query — Day 2")
+    def _init_collections(self) -> None:
+        for name in self.COLLECTION_NAMES:
+            self._collections[name] = self.client.get_or_create_collection(
+                name=name,
+                metadata={"hnsw:space": "cosine"},
+            )
+
+    def _embed(self, texts: List[str]) -> List[List[float]]:
+        return self.embedder.encode(texts, convert_to_numpy=True).tolist()
+
+    def add(
+        self,
+        collection_name: str,
+        documents: List[str],
+        metadatas: List[Dict[str, Any]],
+        ids: List[str],
+    ) -> None:
+        if collection_name not in self._collections:
+            raise ValueError(f"Unknown collection: {collection_name}")
+
+        embeddings = self._embed(documents)
+        self._collections[collection_name].add(
+            documents=documents,
+            embeddings=embeddings,
+            metadatas=metadatas,
+            ids=ids,
+        )
+
+    def query(
+        self,
+        collection_name: str,
+        query_text: str,
+        top_k: int = 3,
+    ) -> List[Dict[str, Any]]:
+        if collection_name not in self._collections:
+            raise ValueError(f"Unknown collection: {collection_name}")
+
+        embedding = self._embed([query_text])[0]
+        results = self._collections[collection_name].query(
+            query_embeddings=[embedding],
+            n_results=top_k,
+            include=["documents", "metadatas", "distances"],
+        )
+
+        output = []
+        for i in range(len(results["documents"][0])):
+            output.append(
+                {
+                    "document": results["documents"][0][i],
+                    "metadata": results["metadatas"][0][i],
+                    "distance": results["distances"][0][i],
+                }
+            )
+        return output
+
+    def collection_count(self, collection_name: str) -> int:
+        if collection_name not in self._collections:
+            raise ValueError(f"Unknown collection: {collection_name}")
+        return self._collections[collection_name].count()
