@@ -32,6 +32,48 @@ class TimeframeStatus(str, Enum):
     EXPECTED = "expected"  # anticipated but hasn't started yet
 
 
+class RiskAssessment(BaseModel):
+    """Structured output of the Risk Analysis Agent."""
+
+    risk_score: int = Field(
+        ...,
+        ge=1,
+        le=10,
+        description=(
+            "Overall supply-chain risk score 1-10, grounded in the rubric: "
+            "1-3 = minor/localized, low urgency; "
+            "4-6 = moderate disruption, some products/routes affected; "
+            "7-8 = serious, multiple suppliers or products at risk, buffer < 2 weeks; "
+            "9-10 = critical, imminent stockout or major multi-region collapse."
+        ),
+    )
+    rationale: str = Field(
+        ...,
+        description=(
+            "Written explanation of the score, explicitly referencing: "
+            "the event type and severity, which suppliers/regions are affected, "
+            "days of stock remaining for affected products, "
+            "historical precedent from similar past events if available."
+        ),
+    )
+    affected_products: list[str] = Field(
+        default_factory=list,
+        description="Specific products at risk based on affected suppliers and regions.",
+    )
+    affected_supplier_names: list[str] = Field(
+        default_factory=list,
+        description="Names of suppliers directly impacted by this event.",
+    )
+    urgency: str = Field(
+        ...,
+        description="One of: 'low', 'medium', 'high', 'critical' — summary label for dashboard display.",
+    )
+    recommended_review_within_hours: int = Field(
+        ...,
+        description="How many hours before a human should review this — e.g. 2 for critical, 24 for low.",
+    )
+
+
 class Event(BaseModel):
     """Structured output of the Event Extraction Agent."""
 

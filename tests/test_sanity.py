@@ -12,4 +12,12 @@ def test_core_imports():
     from app.notifications.base import NotificationService  # noqa: F401
     from app.state import PipelineState  # noqa: F401
 
+    # Day 2 additions
+    from app.agents.risk_analysis import RiskAnalysisAgent  # noqa: F401
+    from app.agents.schemas import RiskAssessment  # noqa: F401
+    from app.db.inventory_repository import InventoryRepository  # noqa: F401
+    from app.models.event import Event  # noqa: F401
+    from app.models.inventory import Inventory  # noqa: F401
+    from app.models.supplier import Supplier  # noqa: F401
+
     assert True
