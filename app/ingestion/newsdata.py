@@ -10,13 +10,15 @@ from app.ingestion.base import BaseDataSource, RawArticle
 class NewsDataSource(BaseDataSource):
     BASE_URL = "https://newsdata.io/api/1/news"
 
-    def __init__(self, api_key: str = "", query: str = "", **kwargs):
+    def __init__(self, api_key: str = "", query: str = "supply chain OR port OR logistics OR strike OR flood OR shipment", **kwargs):
         self.api_key = api_key
         self.query = query
 
     def fetch_events(self) -> list[RawArticle]:
         if not self.api_key:
             raise ValueError("NEWSDATA_API_KEY is not set")
+        if not self.query.strip():
+            raise ValueError("NewsDataSource requires a non-empty query string")
 
         params = {
             "apikey": self.api_key,
