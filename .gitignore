@@ -25,4 +25,4 @@ Thumbs.db
 
 # IDE
 .vscode/
-.idea/
+.idea/data/chroma_db/ 
