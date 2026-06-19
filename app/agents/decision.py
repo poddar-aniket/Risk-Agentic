@@ -1,163 +1,160 @@
-"""
-Decision Agent — proposes a concrete mitigation action grounded in:
-  - risk_assessment  (Risk Analysis Agent)
-  - supplier_impact  (Supplier Agent)
-  - RAG: similar past cases + previously rejected options
+# app/agents/decision.py
 
-The key behaviour: before proposing anything, it queries RAG for previously
-rejected options so the same bad idea isn't proposed twice for similar situations.
-The rejection reason (stored by the FastAPI reject endpoint on Day 4) is what
-makes this useful — it's the human's domain knowledge fed back into the loop.
-
-Reads from state:  risk_assessment, supplier_impact
-Writes to state:   decision_proposal (DecisionProposal)
 """
+Decision Agent.
+
+Proposes ONE concrete mitigation action, grounded in:
+  - state.risk_assessment   (Risk Analysis Agent)
+  - state.supplier_impact   (Supplier Agent, Day 3)
+  - RAG "rejections" collection -- previously rejected proposals for similar
+    situations, so the same option isn't proposed twice.
+
+One half of the Decision <-> Supervisor micro loop. On the first pass
+(state.supervisor_feedback is None) it builds a fresh proposal. On later
+passes -- the LangGraph conditional edge has looped back from Supervisor --
+it revises the previous proposal against the Supervisor's critique instead
+of starting over.
+
+Note: this agent does NOT increment state.iteration_count -- that's
+Supervisor Agent / the conditional edge's responsibility, since Supervisor
+is the one deciding whether the loop continues.
+"""
+import json
 import logging
-
-from sqlalchemy.orm import Session
 
 from app.agents.base import BaseAgent
 from app.agents.schemas import DecisionProposal
-from app.db.inventory_repository import InventoryRepository
 from app.llm.base import LLMClient
 from app.rag.client import RAGClient
 from app.state import PipelineState
 
 logger = logging.getLogger(__name__)
 
-DECISION_PROMPT_TEMPLATE = """You are a supply-chain risk mitigation specialist. Your job is to propose ONE concrete mitigation action for a supply-chain disruption.
+DECISION_PROMPT_TEMPLATE = """You are a supply-chain mitigation strategist for an India-focused retail company.
 
-You will be given:
-1. The risk assessment (score, rationale, urgency)
-2. The affected suppliers and their current inventory levels
-3. Similar past cases and their outcomes from our historical database
-4. Previously rejected mitigation options — you MUST NOT propose any of these again
-
-AVAILABLE ACTION TYPES:
-- place_reorder: Place an urgent reorder for a specific product from a supplier
-- find_alternate_supplier: Identify and engage an alternate supplier in a different region
-- increase_safety_stock: Increase safety stock buffer for a high-risk product
-- hold_supplier: Flag a supplier as on-hold and pause new orders
-- expedite_shipment: Expedite an existing order via faster transport
-- monitor_only: No action needed yet — continue monitoring
-
-DECISION RULES:
-- If days_of_stock_remaining < reorder_lead_time: place_reorder is likely needed
-- If risk_score >= 8 and no alternate suppliers exist: find_alternate_supplier
-- If risk_score <= 3: monitor_only is appropriate
-- NEVER propose an action that appears in the previously rejected options list
-- Propose the SINGLE most impactful action — not a list
+Your job is to propose ONE concrete, specific mitigation action in response to a supply-chain
+disruption that has already been risk-scored and mapped to specific suppliers and inventory.
+Ground every part of your proposal in the actual numbers provided below -- do not propose vague
+or generic actions, and do not invent supplier or product names that aren't listed below.
 
 RISK ASSESSMENT:
-Score: {risk_score}/10
-Urgency: {urgency}
-Rationale: {rationale}
-Affected products: {affected_products}
+Risk score: {risk_score}/10 (urgency: {urgency})
+Rationale: {risk_rationale}
 
-SUPPLIER AND INVENTORY DATA:
-{inventory_context}
+AFFECTED SUPPLIERS AND INVENTORY:
+{supplier_inventory_context}
 
-SIMILAR PAST CASES FROM HISTORICAL DATABASE:
-{rag_context}
+PAST PROPOSALS REJECTED BY HUMANS FOR SIMILAR SITUATIONS -- DO NOT PROPOSE THESE AGAIN,
+or if nothing else fits, explain in your justification why this case differs enough to proceed anyway:
+{rejected_context}
+{revision_context}
+ACTION TYPES AVAILABLE: place_reorder, find_alternate_supplier, increase_safety_stock,
+hold_supplier, expedite_shipment, monitor_only.
 
-PREVIOUSLY REJECTED OPTIONS (DO NOT PROPOSE THESE):
-{rejected_options}
+Choose the action type, target supplier, and target product that best matches the severity
+and specifics of this situation. Size the action (magnitude) using the actual stock numbers
+above -- e.g. if a product has 4 days of stock left and a 10-day lead time, a reorder sized to
+cover the gap is appropriate; if a supplier has ample buffer, monitor_only may be the right call.
 
-Based on all of the above, propose ONE concrete mitigation action. Be specific about magnitude (exact units, timeframes, quantities). Justify your choice by referencing the actual numbers above."""
+If no specific supplier or product was identified for this event, set action_type to
+monitor_only, target_supplier_name and target_product to "none identified", and use the
+justification to explain why no specific action is being taken yet.
+
+Write a justification that explicitly references the risk score, the specific days-of-stock
+number driving your decision, and any relevant historical precedent.
+"""
 
 
-def _format_inventory_context(supplier_impact: dict) -> str:
-    rows = supplier_impact.get("inventory_summary", [])
-    if not rows:
-        return "No inventory data available."
+def _format_supplier_inventory(supplier_impact: dict) -> str:
+    inventory_summary = supplier_impact.get("inventory_summary", [])
+    if not inventory_summary:
+        return "No specific supplier or inventory data was identified for this event."
+
     lines = []
-    for row in rows:
+    for row in inventory_summary:
         days = row.get("days_of_stock_remaining")
-        days_str = f"{days}" if days is not None else "∞"
-        reorder_status = "YES" if row.get("reorder_placed") else "no"
+        days_str = f"{days}" if days is not None else "no consumption tracked (effectively unlimited buffer)"
         lines.append(
-            f"- {row['product']} | Supplier: {row['supplier_name']} | "
-            f"Stock: {row['stock_level']} units | Days remaining: {days_str} | "
-            f"Lead time: {row['reorder_lead_time']}d | Reorder placed: {reorder_status}"
+            f"Supplier: {row.get('supplier_name')} | Product: {row.get('product')} | "
+            f"Stock: {row.get('stock_level')} units | Daily use: {row.get('avg_daily_consumption')} | "
+            f"Days remaining: {days_str} | Lead time: {row.get('reorder_lead_time')}d | "
+            f"Reorder already placed: {row.get('reorder_placed')}"
         )
     return "\n".join(lines)
 
 
-def _format_rag_context(results: list[dict]) -> str:
-    if not results:
-        return "No similar historical cases found."
-    lines = []
-    for i, r in enumerate(results, 1):
-        doc = r.get("document", "")
-        meta = r.get("metadata", {})
-        lines.append(f"Case {i}: {doc} | Outcome: {meta.get('outcome', '?')} | Duration: {meta.get('duration_days', '?')}d")
-    return "\n".join(lines)
-
-
-def _format_rejected_options(results: list[dict]) -> str:
-    if not results:
-        return "None — no previously rejected options on record for similar situations."
-    lines = []
-    for i, r in enumerate(results, 1):
-        doc = r.get("document", "")
-        meta = r.get("metadata", {})
-        reason = meta.get("rejection_reason", "no reason recorded")
-        lines.append(f"{i}. {doc} — Rejected because: {reason}")
-    return "\n".join(lines)
-
-
 class DecisionAgent(BaseAgent):
-    def __init__(self, llm_client: LLMClient, db: Session, rag_client: RAGClient):
+    def __init__(self, llm_client: LLMClient, rag_client: RAGClient):
         super().__init__(llm_client)
-        self.inventory_repo = InventoryRepository(db)
         self.rag_client = rag_client
+
+    def _fetch_rejected_options(self, query_text: str) -> str:
+        results = self.rag_client.query(
+            collection_name="rejections",
+            query_text=query_text,
+            top_k=3,
+        )
+        if not results:
+            return "No previously rejected options found for similar situations."
+
+        lines = []
+        for i, r in enumerate(results, 1):
+            meta = r["metadata"]
+            lines.append(
+                f"Rejected option {i}: {r['document']}\n"
+                f"  Reason for rejection: {meta.get('rejection_reason', 'unknown')}"
+            )
+        return "\n\n".join(lines)
 
     def run(self, state: PipelineState) -> PipelineState:
         if state.risk_assessment is None:
             raise ValueError("DecisionAgent requires state.risk_assessment")
         if state.supplier_impact is None:
-            raise ValueError("DecisionAgent requires state.supplier_impact")
+            raise ValueError("DecisionAgent requires state.supplier_impact (from Supplier Agent)")
 
-        risk = state.risk_assessment
-        impact = state.supplier_impact
+        risk_assessment = state.risk_assessment
+        supplier_impact = state.supplier_impact
 
-        # build a query string for RAG lookups
-        products_str = ", ".join(impact.get("affected_products", []))
-        rag_query = f"mitigation for {risk.get('urgency', '')} risk disruption affecting {products_str}"
+        supplier_inventory_context = _format_supplier_inventory(supplier_impact)
 
-        # fetch similar past cases
-        past_cases = self.rag_client.query(rag_query, top_k=5)
+        rag_query = (
+            f"{risk_assessment.get('urgency', '')} risk mitigation for "
+            f"{', '.join(risk_assessment.get('affected_products', []))} "
+            f"from {', '.join(risk_assessment.get('affected_supplier_names', []))}"
+        )
+        rejected_context = self._fetch_rejected_options(rag_query)
 
-        # fetch previously rejected options — stored with metadata type="rejection"
-        rejected_query = f"rejected mitigation {products_str}"
-        rejected_results = self.rag_client.query(rejected_query, top_k=5)
-        # filter to only rejection records (Aniket's RAG seed will tag these)
-        rejected_options = [
-            r for r in rejected_results
-            if r.get("metadata", {}).get("record_type") == "rejection"
-        ]
+        revision_context = ""
+        if state.supervisor_feedback is not None:
+            revision_context = (
+                f"\nTHIS IS A REVISION -- iteration {state.iteration_count}. "
+                f"Your previous proposal was:\n{json.dumps(state.decision_proposal, indent=2)}\n\n"
+                f"The supervisor's feedback on that proposal was:\n"
+                f"{json.dumps(state.supervisor_feedback, indent=2)}\n\n"
+                f"You MUST address every concern raised above. Do not simply repeat the "
+                f"previous proposal with cosmetic changes.\n"
+            )
 
         prompt = DECISION_PROMPT_TEMPLATE.format(
-            risk_score=risk.get("risk_score", "?"),
-            urgency=risk.get("urgency", "?"),
-            rationale=risk.get("rationale", ""),
-            affected_products=products_str,
-            inventory_context=_format_inventory_context(impact),
-            rag_context=_format_rag_context(past_cases),
-            rejected_options=_format_rejected_options(rejected_options),
+            risk_score=risk_assessment.get("risk_score", "unknown"),
+            urgency=risk_assessment.get("urgency", "unknown"),
+            risk_rationale=risk_assessment.get("rationale", ""),
+            supplier_inventory_context=supplier_inventory_context,
+            rejected_context=rejected_context,
+            revision_context=revision_context,
         )
 
         proposal: DecisionProposal = self.llm_client.generate(prompt, DecisionProposal)
+        # Set programmatically rather than trusting the LLM's self-report --
+        # we know for a fact RAG was queried above, this just records it.
+        proposal.previously_rejected_options_checked = True
 
-        # mark that we did check for rejected options
-        proposal_dict = proposal.model_dump(mode="json")
-        proposal_dict["previously_rejected_options_checked"] = True
-
-        state.decision_proposal = proposal_dict
+        state.decision_proposal = proposal.model_dump(mode="json")
         logger.info(
-            "DecisionAgent: proposed action=%s for product=%s supplier=%s",
+            "Decision proposal (iteration %d): %s on %s / %s",
+            state.iteration_count,
             proposal.action_type,
-            proposal.target_product,
             proposal.target_supplier_name,
+            proposal.target_product,
         )
         return state

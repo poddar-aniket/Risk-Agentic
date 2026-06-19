@@ -100,7 +100,10 @@ def _format_rag_context(rag_results: list[dict]) -> str:
         metadata = result.get("metadata", {})
         lines.append(f"Case {i}: {doc}")
         if metadata:
-            lines.append(f"  Outcome: {metadata.get('outcome', 'unknown')}, Duration: {metadata.get('duration_days', '?')} days")
+            lines.append(
+    f"  Days to resolve: {metadata.get('days_to_resolve', '?')}, "
+    f"Historical delay: {metadata.get('historical_delay_days', '?')} days"
+)
     return "\n".join(lines)
 
 
@@ -137,7 +140,11 @@ class RiskAnalysisAgent(BaseAgent):
 
         # build a RAG query from the event summary + locations
         rag_query = f"{event.get('event_type', '')} disruption in {', '.join(event.get('locations', []))}"
-        rag_results = self.rag_client.query(rag_query, top_k=5)
+        rag_results = self.rag_client.query(
+    collection_name="past_events",
+    query_text=rag_query,
+    top_k=5,
+)
         rag_context = _format_rag_context(rag_results)
 
         prompt = RISK_ANALYSIS_PROMPT_TEMPLATE.format(

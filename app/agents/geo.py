@@ -1,14 +1,15 @@
-# app/agents/geo.py
+# app/agents/geo.py — corrected
 
 from pydantic import BaseModel, Field
 from typing import List
 from app.agents.base import BaseAgent
 from app.llm.base import LLMClient
 from app.rag.client import RAGClient
+from app.state import PipelineState
 
 
 class GeoImpactSchema(BaseModel):
-    affected_regions: List[str] = Field(
+    primary_regions: List[str] = Field(
         description="List of geographic regions directly or indirectly affected by the event."
     )
     affected_routes: List[str] = Field(
@@ -22,6 +23,9 @@ class GeoImpactSchema(BaseModel):
     )
     estimated_duration_days: int = Field(
         description="LLM-reasoned estimate of how many days the geographic disruption is likely to last."
+    )
+    description: str = Field(
+        description="One or two sentence human-readable summary of the overall geographic impact, for use in downstream prompts."
     )
     reasoning: str = Field(
         description="Step-by-step reasoning explaining how the event causes each geographic impact identified."
@@ -37,7 +41,7 @@ class GeoAgent(BaseAgent):
     """
 
     def __init__(self, llm_client: LLMClient, rag_client: RAGClient):
-        self.llm_client = llm_client
+        super().__init__(llm_client)
         self.rag_client = rag_client
 
     def _fetch_similar_geo_cases(self, event_description: str) -> str:
@@ -103,22 +107,20 @@ INSTRUCTIONS:
    in the historical cases above. If no similar case exists, reason from the
    event type and severity.
 
-6. Write clear step-by-step reasoning explaining each impact you identified.
+6. Write a one to two sentence human-readable summary of the overall impact
+   (this will be shown to downstream agents and on the dashboard).
+
+7. Write clear step-by-step reasoning explaining each impact you identified.
 
 Ground your analysis in the historical cases provided. Where historical data
 exists, reference it explicitly in your reasoning.
 """
 
-    def run(self, state: dict) -> dict:
-        structured_event = state.get("structured_event")
-        if not structured_event:
-            raise ValueError("GeoAgent requires 'structured_event' in pipeline state.")
+    def run(self, state: PipelineState) -> PipelineState:
+        if state.structured_event is None:
+            raise ValueError("GeoAgent requires state.structured_event")
 
-        event_dict = (
-            structured_event
-            if isinstance(structured_event, dict)
-            else structured_event.model_dump()
-        )
+        event_dict = state.structured_event
 
         query_text = (
             f"{event_dict.get('title', '')} "
@@ -134,5 +136,5 @@ exists, reference it explicitly in your reasoning.
             output_schema=GeoImpactSchema,
         )
 
-        state["geo_impact"] = geo_impact
+        state.affected_regions = geo_impact.model_dump(mode="json")
         return state

@@ -24,6 +24,18 @@ class SupplierRepository(BaseRepository[Supplier]):
             )
             .all()
         )
+    def get_by_name(self, name: str) -> list[Supplier]:        # <- new, goes here
+        """Fuzzy lookup by supplier name (case-insensitive partial match).
+        Used by Supplier Agent to resolve names the Risk Analysis Agent's LLM
+        call already identified back to full DB records. Deliberately NOT
+        filtered to status == active, since a supplier already on_hold from a
+        prior decision should still resolve here rather than silently vanish."""
+        return (
+            self.db.query(Supplier)
+            .filter(Supplier.name.ilike(f"%{name}%"))
+            .all()
+        )
+
 
     def get_by_status(self, status: str) -> list[Supplier]:
         """Return all suppliers with a given status — e.g. all on_hold suppliers."""
