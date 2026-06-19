@@ -102,11 +102,6 @@ class DecisionAgent(BaseAgent):
             meta = r["metadata"]
             lines.append(
                 f"Rejected option {i}: {r['document']}\n"
-                # NOTE: assumed metadata keys (action_type, rejection_reason)
-                # -- verify against how case_008 / case_011 were actually
-                # seeded in data/seed/cases.json and adjust if different,
-                # otherwise this silently falls back to 'unknown'.
-                f"  Rejected action: {meta.get('action_type', 'unknown')}\n"
                 f"  Reason for rejection: {meta.get('rejection_reason', 'unknown')}"
             )
         return "\n\n".join(lines)

@@ -11,11 +11,12 @@ load_dotenv()
 from app.llm.gemini_client import GeminiClient
 from app.rag.client import RAGClient
 from app.agents.geo import GeoAgent
+from app.state import PipelineState
 
 
-def get_mock_state() -> dict:
-    return {
-        "structured_event": {
+def get_mock_state() -> PipelineState:
+    return PipelineState(
+        structured_event={
             "title": "Cyclone Michaung Approaches Andhra Pradesh Coast",
             "event_type": "natural_disaster",
             "location": "Andhra Pradesh, India",
@@ -28,7 +29,7 @@ def get_mock_state() -> dict:
             ),
             "published_at": "2024-12-04T06:00:00Z",
         }
-    }
+    )
 
 
 def run_test():
@@ -58,29 +59,32 @@ def run_test():
 
     state = get_mock_state()
     print("Running Geo Agent with mock event:")
-    print(f"  Event: {state['structured_event']['title']}")
-    print(f"  Location: {state['structured_event']['location']}")
-    print(f"  Severity: {state['structured_event']['severity']}/10\n")
+    print(f"  Event: {state.structured_event['title']}")
+    print(f"  Location: {state.structured_event['location']}")
+    print(f"  Severity: {state.structured_event['severity']}/10\n")
 
     result_state = agent.run(state)
-    geo_impact = result_state["geo_impact"]
+    geo_impact = result_state.affected_regions  # dict now, not the raw schema object
 
     print("Geo Agent output:")
     print("-" * 60)
-    print(f"Geographic spread : {geo_impact.geographic_spread}")
-    print(f"Estimated duration: {geo_impact.estimated_duration_days} days")
+    print(f"Geographic spread : {geo_impact['geographic_spread']}")
+    print(f"Estimated duration: {geo_impact['estimated_duration_days']} days")
+    print(f"Description       : {geo_impact['description']}")
     print(f"\nAffected regions:")
-    for r in geo_impact.affected_regions:
+    for r in geo_impact["primary_regions"]:
         print(f"  - {r}")
     print(f"\nAffected routes:")
-    for r in geo_impact.affected_routes:
+    for r in geo_impact["affected_routes"]:
         print(f"  - {r}")
     print(f"\nInfrastructure at risk:")
-    for i in geo_impact.infrastructure_at_risk:
+    for i in geo_impact["infrastructure_at_risk"]:
         print(f"  - {i}")
-    print(f"\nReasoning:\n{geo_impact.reasoning}")
+    print(f"\nReasoning:\n{geo_impact['reasoning']}")
     print("-" * 60)
     print("\nGeo Agent test passed.")
+
+    return result_state  # handy if a future end-to-end test wants to chain off this
 
 
 if __name__ == "__main__":
