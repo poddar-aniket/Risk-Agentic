@@ -154,7 +154,7 @@ class RiskAnalysisAgent(BaseAgent):
 
         assessment: RiskAssessment = self.llm_client.generate(prompt, RiskAssessment)
 
-        state.risk_assessment = assessment.model_dump()
+        state.risk_assessment = assessment.model_dump(mode="json")
         logger.info(
             "Risk assessment complete: score=%d, urgency=%s",
             assessment.risk_score,

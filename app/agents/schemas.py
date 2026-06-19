@@ -74,6 +74,81 @@ class RiskAssessment(BaseModel):
     )
 
 
+class ActionType(str, Enum):
+    PLACE_REORDER = "place_reorder"
+    FIND_ALTERNATE_SUPPLIER = "find_alternate_supplier"
+    INCREASE_SAFETY_STOCK = "increase_safety_stock"
+    HOLD_SUPPLIER = "hold_supplier"
+    EXPEDITE_SHIPMENT = "expedite_shipment"
+    MONITOR_ONLY = "monitor_only"
+
+
+class SupplierImpact(BaseModel):
+    """Structured output of the Supplier Agent."""
+
+    affected_suppliers: list[dict] = Field(
+        default_factory=list,
+        description=(
+            "List of affected supplier records, each with: id, name, region, "
+            "products_supplied, status."
+        ),
+    )
+    affected_products: list[str] = Field(
+        default_factory=list,
+        description="Deduplicated list of all products at risk across all affected suppliers.",
+    )
+    inventory_summary: list[dict] = Field(
+        default_factory=list,
+        description=(
+            "Per-product inventory snapshot: product, supplier_name, stock_level, "
+            "avg_daily_consumption, days_of_stock_remaining, reorder_lead_time, reorder_placed."
+        ),
+    )
+    total_suppliers_affected: int = Field(
+        default=0,
+        description="Count of unique suppliers affected — used by Decision Agent to size response.",
+    )
+
+
+class DecisionProposal(BaseModel):
+    """Structured output of the Decision Agent."""
+
+    action_type: ActionType = Field(
+        ...,
+        description="The category of mitigation action being proposed.",
+    )
+    target_supplier_name: str = Field(
+        ...,
+        description="Name of the supplier this action targets.",
+    )
+    target_product: str = Field(
+        ...,
+        description="Specific product this action addresses.",
+    )
+    justification: str = Field(
+        ...,
+        description=(
+            "Clear explanation of why this action was chosen, referencing the risk score, "
+            "days of stock remaining, and any relevant historical precedent from RAG."
+        ),
+    )
+    magnitude: str = Field(
+        ...,
+        description=(
+            "Concrete size of the action — e.g. '500 units reorder', '2 week hold', "
+            "'identify 3 alternate suppliers in Maharashtra'."
+        ),
+    )
+    estimated_resolution_days: int = Field(
+        ...,
+        description="How many days this action is expected to take to resolve the risk.",
+    )
+    previously_rejected_options_checked: bool = Field(
+        default=False,
+        description="Whether RAG was queried for previously rejected options before proposing this.",
+    )
+
+
 class Event(BaseModel):
     """Structured output of the Event Extraction Agent."""
 
