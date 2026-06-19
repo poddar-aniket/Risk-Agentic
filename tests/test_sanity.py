@@ -20,4 +20,9 @@ def test_core_imports():
     from app.models.inventory import Inventory  # noqa: F401
     from app.models.supplier import Supplier  # noqa: F401
 
+    # Day 3 additions
+    from app.agents.decision import DecisionAgent  # noqa: F401
+    from app.agents.schemas import ActionType, DecisionProposal, SupplierImpact  # noqa: F401
+    from app.agents.supplier import SupplierAgent  # noqa: F401
+
     assert True

@@ -24,7 +24,7 @@ class GeminiClient(LLMClient):
     def __init__(
         self,
         api_key: str,
-        model_name: str = "gemini-2.5-flash-lite",
+        model_name: str = "gemini-3.1-lite",
         max_retries: int = 3,
         temperature: float = 0.0,
     ):

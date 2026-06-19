@@ -37,5 +37,5 @@ class EventExtractionAgent(BaseAgent):
         prompt = EXTRACTION_PROMPT_TEMPLATE.format(title=article.title, content=article.content)
 
         event: Event = self.llm_client.generate(prompt, Event)
-        state.structured_event = event.model_dump()
+        state.structured_event = event.model_dump(mode="json")
         return state
