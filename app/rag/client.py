@@ -60,6 +60,16 @@ class RAGClient:
             ids=ids,
         )
 
+    def delete(
+        self,
+        collection_name: str,
+        ids: List[str],
+    ) -> None:
+        if collection_name not in self._collections:
+            raise ValueError(f"Unknown collection: {collection_name}")
+
+        self._collections[collection_name].delete(ids=ids)
+        
     def query(
         self,
         collection_name: str,
