@@ -24,7 +24,10 @@ def list_queue(db: Session = Depends(get_db)):
 
 @router.post("/queue/{decision_id}/approve")
 def approve_decision(decision_id: int, db: Session = Depends(get_db)):
-    decision = DecisionRepository(db).approve(decision_id)
+    try:
+        decision = DecisionRepository(db).approve(decision_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     if decision is None:
         raise HTTPException(status_code=404, detail="Decision not found")
     return decision
@@ -33,12 +36,13 @@ def approve_decision(decision_id: int, db: Session = Depends(get_db)):
 @router.post("/queue/{decision_id}/reject")
 def reject_decision(decision_id: int, payload: RejectRequest, db: Session = Depends(get_db)):
     repo = DecisionRepository(db)
-    decision = repo.reject(decision_id, payload.reason)
+    try:
+        decision = repo.reject(decision_id, payload.reason)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     if decision is None:
         raise HTTPException(status_code=404, detail="Decision not found")
 
-    # Per architecture: rejection reason gets written to RAG so the
-    # Decision Agent avoids proposing the same rejected option again.
     _rag_client.add(
         collection_name="rejections",
         documents=[
