@@ -42,8 +42,8 @@ def reject_decision(decision_id: int, payload: RejectRequest, db: Session = Depe
     _rag_client.add(
         collection_name="rejections",
         documents=[
-            f"Proposed action: {decision.action_type} on {decision.target} -- "
-            f"{decision.justification}. Rejected: {payload.reason}"
+            f"Proposed action: {decision.action_type} on {decision.target_supplier_name} / "
+            f"{decision.target_product} -- {decision.justification}. Rejected: {payload.reason}"
         ],
         metadatas=[{"decision_id": decision.id, "rejection_reason": payload.reason}],
         ids=[f"decision_{decision.id}_rejection"],
