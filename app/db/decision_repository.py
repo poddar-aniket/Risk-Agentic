@@ -19,6 +19,11 @@ class DecisionRepository(BaseRepository[Decision]):
         decision = self.get(decision_id)
         if decision is None:
             return None
+        if decision.status != "pending":
+            raise ValueError(
+                f"Cannot approve decision {decision_id}: status is "
+                f"'{decision.status}', expected 'pending'"
+            )
         decision.status = "approved"
         self.db.commit()
         self.db.refresh(decision)
@@ -28,6 +33,11 @@ class DecisionRepository(BaseRepository[Decision]):
         decision = self.get(decision_id)
         if decision is None:
             return None
+        if decision.status != "pending":
+            raise ValueError(
+                f"Cannot reject decision {decision_id}: status is "
+                f"'{decision.status}', expected 'pending'"
+            )
         decision.status = "rejected"
         decision.rejection_reason = reason
         self.db.commit()
