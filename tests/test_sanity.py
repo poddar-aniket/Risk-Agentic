@@ -24,5 +24,8 @@ def test_core_imports():
     from app.agents.decision import DecisionAgent  # noqa: F401
     from app.agents.schemas import ActionType, DecisionProposal, SupplierImpact  # noqa: F401
     from app.agents.supplier import SupplierAgent  # noqa: F401
+    from app.agents.supervisor import SupervisorAgent  # noqa: F401
+    from app.agents.schemas import SupervisorFeedback  # noqa: F401
+    from app.orchestration.graph import build_graph, micro_loop_router  # noqa: F401
 
     assert True

@@ -74,6 +74,52 @@ class RiskAssessment(BaseModel):
     )
 
 
+class SupervisorFeedback(BaseModel):
+    """Structured output of the Supervisor Agent."""
+
+    confidence_score: float = Field(
+        ...,
+        ge=1.0,
+        le=10.0,
+        description=(
+            "Confidence in the Decision Agent's proposal, 1-10, based on this rubric: "
+            "1-4 = proposal has serious flaws (wrong action type, wrong scale, "
+            "ignores key inventory data, or contradicts historical precedent); "
+            "5-6 = reasonable but improvable (vague magnitude, missing justification, "
+            "or a better option exists); "
+            "7-8 = solid proposal, well-grounded in the data, minor gaps only; "
+            "9-10 = exemplary — specific, proportionate, grounded in all evidence."
+        ),
+    )
+    approved: bool = Field(
+        ...,
+        description="True if confidence_score meets or exceeds the configured threshold.",
+    )
+    critique: str = Field(
+        ...,
+        description=(
+            "Specific critique of the proposal: what is wrong or missing, "
+            "referencing the actual risk score, inventory numbers, and historical "
+            "precedent where relevant. If approved, state what makes it strong."
+        ),
+    )
+    suggested_revision: Optional[str] = Field(
+        None,
+        description=(
+            "If not approved: a specific, actionable suggestion for how the Decision "
+            "Agent should revise its proposal in the next iteration. "
+            "If approved: null."
+        ),
+    )
+    proportionality_check: str = Field(
+        ...,
+        description=(
+            "One of: 'proportionate', 'overkill', 'insufficient' — "
+            "is the proposed action's magnitude appropriate for the risk score?"
+        ),
+    )
+
+
 class ActionType(str, Enum):
     PLACE_REORDER = "place_reorder"
     FIND_ALTERNATE_SUPPLIER = "find_alternate_supplier"

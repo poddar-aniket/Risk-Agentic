@@ -1,0 +1,58 @@
+============================= test session starts =============================
+platform win32 -- Python 3.14.6, pytest-9.1.0, pluggy-1.6.0
+rootdir: C:\Users\manish\OneDrive\Desktop\Risk-Agentic
+plugins: anyio-4.14.0, langsmith-0.8.17
+collected 54 items / 3 errors
+
+=================================== ERRORS ====================================
+________________ ERROR collecting scripts/manual_smoke_test.py ________________
+ImportError while importing test module 'C:\Users\manish\OneDrive\Desktop\Risk-Agentic\scripts\manual_smoke_test.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+scripts\manual_smoke_test.py:8: in <module>
+    from app.agents.event_extraction import EventExtractionAgent
+E   ModuleNotFoundError: No module named 'app'
+___________________ ERROR collecting tests/test_adapters.py ___________________
+tests\test_adapters.py:15: in <module>
+    articles = news.fetch_events()
+               ^^^^^^^^^^^^^^^^^^^
+app\ingestion\newsdata.py:31: in fetch_events
+    response.raise_for_status()
+.venv\Lib\site-packages\httpx\_models.py:829: in raise_for_status
+    raise HTTPStatusError(message, request=request, response=self)
+E   httpx.HTTPStatusError: Client error '401 UNAUTHORIZED' for url 'https://newsdata.io/api/1/news?apikey=your-newsdata-api-key-here&q=supply+chain+disruption+India&language=en&category=business%2Cscience%2Ctechnology'
+E   For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/401
+------------------------------- Captured stdout -------------------------------
+--- NewsData.io ---
+_______________ ERROR collecting tests/test_integration_day1.py _______________
+tests\test_integration_day1.py:36: in <module>
+    articles = source.fetch_events()
+               ^^^^^^^^^^^^^^^^^^^^^
+app\ingestion\newsdata.py:31: in fetch_events
+    response.raise_for_status()
+.venv\Lib\site-packages\httpx\_models.py:829: in raise_for_status
+    raise HTTPStatusError(message, request=request, response=self)
+E   httpx.HTTPStatusError: Client error '401 UNAUTHORIZED' for url 'https://newsdata.io/api/1/news?apikey=your-newsdata-api-key-here&q=supply+chain+OR+port+OR+logistics+OR+strike+OR+flood+OR+shipment&language=en&category=business%2Cscience%2Ctechnology'
+E   For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/401
+------------------------------- Captured stdout -------------------------------
+
+=== STEP 1: Fetch articles from NewsData.io ===
+============================== warnings summary ===============================
+.venv\Lib\site-packages\chromadb\telemetry\opentelemetry\__init__.py:128
+  C:\Users\manish\OneDrive\Desktop\Risk-Agentic\.venv\Lib\site-packages\chromadb\telemetry\opentelemetry\__init__.py:128: DeprecationWarning: 'asyncio.iscoroutinefunction' is deprecated and slated for removal in Python 3.16; use inspect.iscoroutinefunction() instead
+    if asyncio.iscoroutinefunction(f):
+
+.venv\Lib\site-packages\google\genai\types.py:42
+  C:\Users\manish\OneDrive\Desktop\Risk-Agentic\.venv\Lib\site-packages\google\genai\types.py:42: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+ERROR scripts/manual_smoke_test.py
+ERROR tests/test_adapters.py - httpx.HTTPStatusError: Client error '401 UNAUT...
+ERROR tests/test_integration_day1.py - httpx.HTTPStatusError: Client error '4...
+!!!!!!!!!!!!!!!!!!! Interrupted: 3 errors during collection !!!!!!!!!!!!!!!!!!!
+================== 2 warnings, 3 errors in 90.04s (0:01:30) ===================
