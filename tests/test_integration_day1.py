@@ -111,7 +111,8 @@ print(f"    Failed : {failed}/{passed + failed}")
 if failed == 0:
     print("\n[INTEGRATION TEST PASSED] Day 1 pipeline is working end-to-end.")
     print("Both PRs are ready to merge into dev.\n")
-    sys.exit(0)
+    if __name__=="__main__":
+        sys.exit(0)
 else:
     print("\n[INTEGRATION TEST FAILED] Fix the errors above before merging PRs.\n")
     sys.exit(1)

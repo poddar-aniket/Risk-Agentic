@@ -149,7 +149,7 @@ def test_supervisor_queries_cases_collection(full_state, canned_feedback_approve
     agent.run(full_state)
 
     assert len(fake_rag.calls) == 1
-    assert fake_rag.calls[0]["collection"] == "cases"
+    assert fake_rag.calls[0]["collection"] == "past_events"
 
 
 def test_supervisor_prompt_includes_proposal_details(full_state, canned_feedback_approved):

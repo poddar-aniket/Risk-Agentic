@@ -44,14 +44,13 @@ class FakeRAGClient(RAGClient):
         self.rejected = rejected or []
         self.queries: list[str] = []
 
-    def query(self, query_text: str, top_k: int = 5) -> list[dict]:
+    def query(self, collection_name: str, query_text: str, top_k: int = 5) -> list[dict]:
         self.queries.append(query_text)
-        # return rejected records on second call, past cases on first
-        if len(self.queries) == 1:
-            return self.past_cases
-        return self.rejected
+        if collection_name == "rejections":
+            return self.rejected
+        return self.past_cases
 
-    def add(self, documents, metadatas, ids):
+    def add(self, collection_name, documents, metadatas, ids):
         pass
 
 
@@ -64,10 +63,8 @@ def db_session():
     Session = sessionmaker(bind=engine)
     db = Session()
 
-    # Tamil Nadu supplier
     s1 = Supplier(name="Ramesh Agro Suppliers", region="Tamil Nadu",
                   products_supplied="rice,wheat", status="active")
-    # Maharashtra supplier — should NOT appear in Tamil Nadu queries
     s2 = Supplier(name="Maharashtra Grain Co.", region="Maharashtra",
                   products_supplied="wheat,sugar", status="active")
     db.add_all([s1, s2])
@@ -95,7 +92,15 @@ def test_supplier_agent_maps_region_to_correct_suppliers(db_session):
         affected_regions={
             "primary_regions": ["Tamil Nadu"],
             "description": "Tamil Nadu coastline affected.",
-        }
+        },
+        risk_assessment={
+            "affected_supplier_names": [],
+            "affected_products": [],
+            "risk_score": 7,
+            "urgency": "high",
+            "rationale": "",
+            "recommended_review_within_hours": 4,
+        },
     )
     result = agent.run(state)
 
@@ -109,6 +114,14 @@ def test_supplier_agent_builds_inventory_summary(db_session):
     agent = SupplierAgent(llm_client=FakeLLMClient(None), db=db_session)
     state = PipelineState(
         affected_regions={"primary_regions": ["Tamil Nadu"], "description": ""},
+        risk_assessment={
+            "affected_supplier_names": [],
+            "affected_products": [],
+            "risk_score": 7,
+            "urgency": "high",
+            "rationale": "",
+            "recommended_review_within_hours": 4,
+        },
     )
     result = agent.run(state)
 
@@ -116,7 +129,6 @@ def test_supplier_agent_builds_inventory_summary(db_session):
     assert "rice" in products
     assert "wheat" in products
 
-    # rice: 400 / 80 = 5.0 days remaining
     rice_row = next(r for r in result.supplier_impact["inventory_summary"] if r["product"] == "rice")
     assert rice_row["days_of_stock_remaining"] == 5.0
 
@@ -124,13 +136,30 @@ def test_supplier_agent_builds_inventory_summary(db_session):
 def test_supplier_agent_requires_affected_regions(db_session):
     agent = SupplierAgent(llm_client=FakeLLMClient(None), db=db_session)
     with pytest.raises(ValueError, match="affected_regions"):
-        agent.run(PipelineState())
+        agent.run(PipelineState(
+            risk_assessment={
+                "affected_supplier_names": [],
+                "affected_products": [],
+                "risk_score": 5,
+                "urgency": "medium",
+                "rationale": "",
+                "recommended_review_within_hours": 12,
+            }
+        ))
 
 
 def test_supplier_agent_handles_no_suppliers_found(db_session):
     agent = SupplierAgent(llm_client=FakeLLMClient(None), db=db_session)
     state = PipelineState(
         affected_regions={"primary_regions": ["Ladakh"], "description": ""},
+        risk_assessment={
+            "affected_supplier_names": [],
+            "affected_products": [],
+            "risk_score": 2,
+            "urgency": "low",
+            "rationale": "",
+            "recommended_review_within_hours": 24,
+        },
     )
     result = agent.run(state)
     assert result.supplier_impact["total_suppliers_affected"] == 0
@@ -138,6 +167,7 @@ def test_supplier_agent_handles_no_suppliers_found(db_session):
 
 
 # ---- DecisionAgent tests ----
+# Aniket's DecisionAgent takes only (llm_client, rag_client) — no db.
 
 @pytest.fixture
 def canned_proposal():
@@ -153,8 +183,7 @@ def canned_proposal():
 
 
 @pytest.fixture
-def full_state(db_session):
-    """PipelineState with risk_assessment and supplier_impact already populated."""
+def full_state():
     return PipelineState(
         risk_assessment={
             "risk_score": 8,
@@ -180,9 +209,9 @@ def full_state(db_session):
     )
 
 
-def test_decision_agent_populates_decision_proposal(db_session, canned_proposal, full_state):
+def test_decision_agent_populates_decision_proposal(canned_proposal, full_state):
     fake_llm = FakeLLMClient(canned_proposal)
-    agent = DecisionAgent(llm_client=fake_llm, db=db_session, rag_client=FakeRAGClient())
+    agent = DecisionAgent(llm_client=fake_llm, rag_client=FakeRAGClient())
 
     result = agent.run(full_state)
 
@@ -192,38 +221,37 @@ def test_decision_agent_populates_decision_proposal(db_session, canned_proposal,
     assert result.decision_proposal["previously_rejected_options_checked"] is True
 
 
-def test_decision_agent_prompt_includes_inventory_numbers(db_session, canned_proposal, full_state):
+def test_decision_agent_prompt_includes_inventory_numbers(canned_proposal, full_state):
     fake_llm = FakeLLMClient(canned_proposal)
-    agent = DecisionAgent(llm_client=fake_llm, db=db_session, rag_client=FakeRAGClient())
+    agent = DecisionAgent(llm_client=fake_llm, rag_client=FakeRAGClient())
     agent.run(full_state)
 
-    assert "5.0" in fake_llm.last_prompt          # days of stock remaining
+    assert "5.0" in fake_llm.last_prompt
     assert "Ramesh Agro Suppliers" in fake_llm.last_prompt
     assert "rice" in fake_llm.last_prompt
 
 
-def test_decision_agent_includes_rejected_options_in_prompt(db_session, canned_proposal, full_state):
+def test_decision_agent_includes_rejected_options_in_prompt(canned_proposal, full_state):
     rejected = [{"document": "expedite_shipment for rice from Ramesh",
-                 "metadata": {"record_type": "rejection",
-                              "rejection_reason": "No faster transport available"}}]
+                 "metadata": {"rejection_reason": "No faster transport available"}}]
     fake_rag = FakeRAGClient(rejected=rejected)
     fake_llm = FakeLLMClient(canned_proposal)
-    agent = DecisionAgent(llm_client=fake_llm, db=db_session, rag_client=fake_rag)
+    agent = DecisionAgent(llm_client=fake_llm, rag_client=fake_rag)
     agent.run(full_state)
 
     assert "No faster transport available" in fake_llm.last_prompt
 
 
-def test_decision_agent_requires_risk_assessment(db_session, canned_proposal):
+def test_decision_agent_requires_risk_assessment(canned_proposal):
     agent = DecisionAgent(llm_client=FakeLLMClient(canned_proposal),
-                          db=db_session, rag_client=FakeRAGClient())
+                          rag_client=FakeRAGClient())
     with pytest.raises(ValueError, match="risk_assessment"):
         agent.run(PipelineState(supplier_impact={"affected_products": []}))
 
 
-def test_decision_agent_requires_supplier_impact(db_session, canned_proposal):
+def test_decision_agent_requires_supplier_impact(canned_proposal):
     agent = DecisionAgent(llm_client=FakeLLMClient(canned_proposal),
-                          db=db_session, rag_client=FakeRAGClient())
+                          rag_client=FakeRAGClient())
     with pytest.raises(ValueError, match="supplier_impact"):
         agent.run(PipelineState(risk_assessment={"risk_score": 7, "urgency": "high",
                                                   "rationale": "", "affected_products": []}))

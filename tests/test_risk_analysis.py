@@ -39,16 +39,16 @@ class FakeLLMClient(LLMClient):
         return self.canned
 
 
+# CORRECT
 class FakeRAGClient(RAGClient):
-    def query(self, query_text: str, top_k: int = 5) -> list[dict]:
+    def query(self, collection_name: str, query_text: str, top_k: int = 5) -> list[dict]:
         return [
             {
                 "document": "2023 Tamil Nadu flooding closed Chennai port for 6 days",
                 "metadata": {"outcome": "delayed", "duration_days": "6"},
             }
         ]
-
-    def add(self, documents, metadatas, ids):
+    def add(self, collection_name, documents, metadatas, ids):
         pass
 
 
