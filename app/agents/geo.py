@@ -78,20 +78,25 @@ You must reason carefully from the event details. Do not apply hardcoded rules.
 Think step by step about how this specific event causes geographic disruption.
 
 EVENT DETAILS:
-- Title: {event.get('title', 'Unknown')}
 - Type: {event.get('event_type', 'Unknown')}
-- Location: {event.get('location', 'Unknown')}
+- Locations: {', '.join(event.get('locations', [])) or 'Unknown'}
 - Severity: {event.get('severity', 'Unknown')}/10
-- Description: {event.get('description', 'Unknown')}
-- Reported at: {event.get('published_at', 'Unknown')}
+- Timeframe: {event.get('timeframe_status', 'Unknown')}
+- Estimated duration: {event.get('estimated_duration_days', 'Unknown')} days
+- Summary: {event.get('summary', 'Unknown')}
 
 SIMILAR HISTORICAL CASES FROM MEMORY:
 {similar_cases}
 
 INSTRUCTIONS:
-1. Identify all geographic regions that will be directly or indirectly affected.
-   Consider: the epicenter, downstream logistics hubs, connecting corridors, and
-   alternate route availability.
+1. 1. Identify all geographic regions that will be directly or indirectly affected.
+   Report regions at the MOST SPECIFIC level the evidence supports — prefer
+   naming specific states/cities (e.g. "Tamil Nadu", "Chennai") over broad
+   national-level labels like "India". Only use a country-level label if the
+   disruption genuinely has no narrower identifiable scope (e.g. a nationwide
+   regulatory change). Consider: the epicenter, downstream logistics hubs,
+   connecting corridors, and alternate route availability — but list each
+   specifically, don't collapse them into one broad region.
 
 2. Identify all transport routes and logistics corridors disrupted. Be specific:
    name highways (e.g. NH44), ports (e.g. JNPT, Vizag), rail corridors, or
