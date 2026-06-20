@@ -127,7 +127,7 @@ class SupervisorAgent(BaseAgent):
             f"{', '.join(risk.get('affected_products', []))}"
         )
         historical_cases = self.rag_client.query(
-            collection_name="cases",
+            collection_name="past_events",
             query_text=rag_query,
             top_k=5,
         )
