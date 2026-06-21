@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.db.decision_repository import DecisionRepository
 from app.db.session import get_db
+from app.orchestration.execution import execute_approved_decision
 from app.rag.client import RAGClient
 
 router = APIRouter()
@@ -30,7 +31,15 @@ def approve_decision(decision_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail=str(e))
     if decision is None:
         raise HTTPException(status_code=404, detail="Decision not found")
-    return decision
+
+    # Stage 5: simulated execution. The approval itself has already
+    # succeeded above -- a lookup miss here (e.g. LLM-proposed supplier/
+    # product name not matching a real row) is logged and skipped, not
+    # surfaced as a failed approval. See app/orchestration/execution.py
+    # for the full action_type -> table mutation mapping and its scope.
+    execution_result = execute_approved_decision(decision, db)
+
+    return {"decision": decision, "simulated_execution": execution_result}
 
 
 @router.post("/queue/{decision_id}/reject")
