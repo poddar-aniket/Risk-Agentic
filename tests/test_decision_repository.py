@@ -18,12 +18,27 @@ def db_session():
 
 
 def _sample_decision():
-    # status defaults to "pending" via the column default -- not set explicitly
+    # status defaults to "pending" via the column default -- not set explicitly.
+    # target_supplier_name/target_product, magnitude, estimated_resolution_days,
+    # and supervisor_approved are all nullable=False on the finalized Decision
+    # model -- this fixture previously used a single `target` field that no
+    # longer exists and left the other required columns unset entirely, which
+    # would have failed as an IntegrityError on commit even after fixing just
+    # the `target` name. action_type uses a real ActionType value
+    # ("place_reorder") rather than the old free-text "reorder" for
+    # consistency with what DecisionAgent actually writes. supervisor_approved
+    # is set to False to stay internally consistent with confidence_score=6.5
+    # being below the project's 7.0 confidence threshold, though the DB layer
+    # itself doesn't enforce any relationship between the two.
     return Decision(
-        action_type="reorder",
-        target="rice",
+        action_type="place_reorder",
+        target_supplier_name="Mumbai Port Logistics Co",
+        target_product="rice",
         justification="5 days of stock remaining, 14-day lead time.",
+        magnitude="500 units reorder",
+        estimated_resolution_days=10,
         confidence_score=6.5,
+        supervisor_approved=False,
     )
 
 
