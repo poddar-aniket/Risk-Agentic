@@ -71,15 +71,11 @@ def _resolve_supplier(db: Session, decision: Decision):
     return matches[0]
 
 
-def execute_approved_decision(decision: Decision, db: Session) -> str:
-    """Apply the Stage 5 simulated table mutation for a just-approved Decision.
-
-    Returns a short human-readable string describing what happened, for
-    logging/response purposes. Never raises -- a simulated-execution lookup
-    miss is logged and skipped, not surfaced as an approval failure, since
-    the approve endpoint's primary contract (flip Decision.status) has
-    already succeeded by the time this runs.
-    """
+def _execute_action(decision: Decision, db: Session) -> str:
+    """Contains the actual action_type -> table mutation routing. Split out
+    from execute_approved_decision() so the public function can wrap the
+    whole thing in a single outer guard (see that function's docstring)
+    without that guard having to be threaded through every branch here."""
     try:
         action_type = ActionType(decision.action_type)
     except ValueError:
@@ -148,3 +144,31 @@ def execute_approved_decision(decision: Decision, db: Session) -> str:
         decision.id,
     )
     return f"skipped: action_type {action_type.value} not mapped"
+
+
+def execute_approved_decision(decision: Decision, db: Session) -> str:
+    """Apply the Stage 5 simulated table mutation for a just-approved Decision.
+
+    Returns a short human-readable string describing what happened, for
+    logging/response purposes. Never raises, full stop -- this includes
+    both the documented lookup-miss cases (handled inside _execute_action)
+    AND any unexpected error from the repository layer itself (e.g. a real
+    DB error), which is caught here. Either way the approve endpoint's
+    primary contract (flip Decision.status) has already succeeded by the
+    time this runs, and a problem in this best-effort demo layer should
+    never turn that into a failed-looking approval response.
+
+    (Tightened from the original version, which only guarded the
+    documented lookup-miss paths -- an unexpected repo exception used to
+    propagate past this function. See tests/test_execution.py::
+    TestExecutionNeverRaisesClaimVsActualBehavior for the regression
+    guard.)
+    """
+    try:
+        return _execute_action(decision, db)
+    except Exception:
+        logger.exception(
+            "Simulated execution: unexpected error executing decision %s -- skipping",
+            decision.id,
+        )
+        return "skipped: unexpected error during simulated execution"

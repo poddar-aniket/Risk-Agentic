@@ -127,11 +127,20 @@ exists, reference it explicitly in your reasoning.
 
         event_dict = state.structured_event
 
+        # FIX (Day 5, test-driven): the previous version built this from
+        # event_dict.get('title')/'location'/'description' -- fields that
+        # do not exist on the real Event schema (app/agents/schemas.py),
+        # which produces 'locations' (plural, list) and 'summary'. That
+        # meant query_text always collapsed to just the bare event_type,
+        # leaving the RAG historical-case lookup blind to WHERE the event
+        # happened. Confirmed via tests/test_geo_agent.py::
+        # TestGeoAgentRagQueryTextBug before this fix (query_text came back
+        # as ' natural_disaster  ', nothing else) and confirmed passing
+        # after it.
         query_text = (
-            f"{event_dict.get('title', '')} "
             f"{event_dict.get('event_type', '')} "
-            f"{event_dict.get('location', '')} "
-            f"{event_dict.get('description', '')}"
+            f"{', '.join(event_dict.get('locations', []))} "
+            f"{event_dict.get('summary', '')}"
         )
         similar_cases = self._fetch_similar_geo_cases(query_text)
         prompt = self._build_prompt(event_dict, similar_cases)
