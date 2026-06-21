@@ -128,8 +128,7 @@ def _get_next_event(config: dict, llm_client, max_candidates: int = 5) -> tuple[
         min(len(candidates), max_candidates),
     )
     return None
-    logger.warning("Macro loop: no articles found from any active source this cycle")
-    return None
+    
 
 def run_pipeline_once() -> None:
     """One full macro-loop cycle: build agents, run the graph on the next
