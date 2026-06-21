@@ -40,6 +40,8 @@ from app.orchestration.graph import build_graph
 from app.rag.client import RAGClient
 from app.state import PipelineState
 from app.utils.config import load_config
+from app.ingestion.factory import SourceFactory
+from app.agents.event_extraction import EXTRACTION_PROMPT_TEMPLATE
 
 logger = logging.getLogger(__name__)
 
@@ -62,15 +64,72 @@ ONE_SEEDED_EVENT = {
 }
 
 
-def _get_next_event() -> dict:
-    """Returns the next raw article to run through the pipeline.
+def _get_next_event(config: dict, llm_client, max_candidates: int = 5) -> tuple[dict, dict] | None:
+    """Fetches from all active ingestion sources, then runs candidates
+    through Event Extraction Agent (in fetch order, across all sources)
+    until one comes back is_relevant=True, or max_candidates is reached.
 
-    TEMPORARY: always returns the same seeded event. Replace with a real
-    call through the ingestion adapters (SourceFactory.fetch_all() or
-    similar) once the scheduler+persistence wiring is confirmed working.
+    Returns (raw_article_dict, structured_event_dict) for the first
+    relevant article found. The structured_event is currently discarded
+    by the caller (run_pipeline_once() re-runs Event Extraction inside
+    the graph) -- returning it here anyway keeps this function's
+    contract self-documenting and leaves the door open to wire it
+    through later without changing this signature again.
+
+    Returns None if no relevant article is found within max_candidates
+    tries, or if no sources returned anything at all.
+
+    max_candidates bounds LLM spend per cycle -- each candidate costs
+    one Event Extraction call regardless of relevance, so this is a
+    real, deliberate cap given free-tier quota constraints, not an
+    arbitrary number. Tune via config if it needs adjusting later.
     """
-    return ONE_SEEDED_EVENT
+    from app.agents.schemas import Event  # local import avoids a cycle with agents importing scheduler indirectly
 
+    sources = SourceFactory.create_all(config)
+    candidates: list[dict] = []
+
+    for source in sources:
+        try:
+            articles = source.fetch_events()
+        except Exception:
+            logger.exception(
+                "Macro loop: ingestion source %s failed, skipping",
+                type(source).__name__,
+            )
+            continue
+        candidates.extend(a.model_dump(mode="json") for a in articles)
+
+    if not candidates:
+        logger.warning("Macro loop: no articles found from any active source this cycle")
+        return None
+
+    logger.info(
+        "Macro loop: %d candidate article(s) found, checking relevance "
+        "(up to %d candidates)", len(candidates), max_candidates,
+    )
+
+    for raw_article in candidates[:max_candidates]:
+        prompt = EXTRACTION_PROMPT_TEMPLATE.format(
+            title=raw_article["title"], content=raw_article["content"],
+        )
+        event: Event = llm_client.generate(prompt, Event)
+        if event.is_relevant:
+            logger.info(
+                "Macro loop: found relevant article: %r", raw_article["title"],
+            )
+            return raw_article, event.model_dump(mode="json")
+        logger.info(
+            "Macro loop: skipping irrelevant article: %r", raw_article["title"],
+        )
+
+    logger.warning(
+        "Macro loop: no relevant article found among %d candidates this cycle",
+        min(len(candidates), max_candidates),
+    )
+    return None
+    logger.warning("Macro loop: no articles found from any active source this cycle")
+    return None
 
 def run_pipeline_once() -> None:
     """One full macro-loop cycle: build agents, run the graph on the next
@@ -109,7 +168,13 @@ def run_pipeline_once() -> None:
             max_iterations=config["orchestration"]["micro_loop_max_iterations"],
         )
 
-        raw_article = _get_next_event()
+        result = _get_next_event(config, llm_client)
+        if result is None:
+            logger.info("Macro loop: nothing relevant to process this cycle, skipping")
+            return
+
+        raw_article, _extracted_event = result
+
         initial_state = PipelineState(raw_article=raw_article)
         result = graph.invoke(initial_state)
         final_state = PipelineState(**result)

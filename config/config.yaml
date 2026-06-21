@@ -9,10 +9,17 @@ data_sources:
         query: "supply chain disruption India"
     - type: rss
       params:
-        feed_urls: []
+        feed_urls:
+          - "https://www.logisticsinsider.in/feed"
     - type: openweather
       params:
-        locations: []
+        locations:
+          - "Chennai"
+          - "Mumbai"
+          - "Ahmedabad"
+          - "Kolkata"
+          - "Bengaluru"
+          - "Amritsar"
 
 rag:
   embedding_model: all-MiniLM-L6-v2
