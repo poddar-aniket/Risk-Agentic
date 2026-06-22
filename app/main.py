@@ -22,15 +22,15 @@ Base.metadata.create_all(bind=engine)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: runs once per real worker process, NOT in uvicorn --reload's
-    # separate file-watcher process -- unlike a bare module-level call,
-    # which was firing twice (once per process) before this fix.
-    start_scheduler()
+    import os
+    if os.getenv("ENABLE_SCHEDULER", "false").lower() == "true":
+        start_scheduler()
+    else:
+        import logging
+        logging.getLogger(__name__).info(
+            "Scheduler disabled — use POST /pipeline/run to trigger manually."
+        )
     yield
-    # Shutdown: nothing to clean up yet. If start_scheduler() is ever
-    # changed to return the BackgroundScheduler instance for real use
-    # (it already does, just unused here), scheduler.shutdown() would
-    # go here.
 
 
 app = FastAPI(title="RiskRadar API", lifespan=lifespan)
