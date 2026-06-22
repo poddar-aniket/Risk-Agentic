@@ -1,6 +1,7 @@
 """
 FastAPI routes — approval queue endpoints, consumed by the Next.js frontend.
 """
+from app.orchestration.scheduler import run_pipeline_once
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -20,6 +21,7 @@ class RejectRequest(BaseModel):
 
 @router.get("/queue")
 def list_queue(db: Session = Depends(get_db)):
+    # The frontend expects all decisions to apply 'All / Pending / Approved / Rejected' filters locally.
     return DecisionRepository(db).get_pending()
 
 
@@ -62,3 +64,11 @@ def reject_decision(decision_id: int, payload: RejectRequest, db: Session = Depe
         ids=[f"decision_{decision.id}_rejection"],
     )
     return decision
+
+@router.post("/pipeline/run")
+def trigger_pipeline():
+    import threading
+    thread = threading.Thread(target=run_pipeline_once)
+    thread.daemon = True
+    thread.start()
+    return {"status": "Pipeline triggered successfully. Check /queue in 60 seconds for results."}

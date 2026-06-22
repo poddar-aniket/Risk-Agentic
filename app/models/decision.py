@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String, Text, JSON
 from sqlalchemy.sql import func
 
 from app.db.session import Base
@@ -32,4 +32,14 @@ class Decision(Base):
     status = Column(String, default="pending")  # "pending" | "approved" | "rejected"
     rejection_reason = Column(Text, nullable=True)
 
-    created_at = Column(DateTime, server_default=func.now())
+    # --- Full pipeline state fields ---
+    structured_event = Column(JSON, nullable=True)
+    affected_regions = Column(JSON, nullable=True)
+    risk_assessment = Column(JSON, nullable=True)
+    supplier_impact = Column(JSON, nullable=True)
+    decision_proposal = Column(JSON, nullable=True)
+    supervisor_feedback = Column(JSON, nullable=True)
+    iteration_count = Column(Integer, default=1)
+    hitl_framing = Column(String, nullable=True)
+
+    created_at = Column(DateTime, server_default=func.now())

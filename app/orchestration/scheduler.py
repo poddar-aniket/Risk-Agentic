@@ -198,14 +198,19 @@ def run_pipeline_once() -> None:
             estimated_resolution_days=proposal["estimated_resolution_days"],
             previously_rejected_options_checked=proposal["previously_rejected_options_checked"],
             confidence_score=feedback["confidence_score"],
-            # Note the deliberate rename: schema field is "approved",
-            # model column is "supervisor_approved" -- see app/models/
-            # decision.py's docstring for why these are kept distinct.
             supervisor_approved=feedback["approved"],
             critique=feedback["critique"],
             suggested_revision=feedback.get("suggested_revision"),
             proportionality_check=feedback["proportionality_check"],
             status="pending",
+            structured_event=final_state.structured_event,
+            affected_regions=final_state.affected_regions,
+            risk_assessment=final_state.risk_assessment,
+            supplier_impact=final_state.supplier_impact,
+            decision_proposal=final_state.decision_proposal,
+            supervisor_feedback=final_state.supervisor_feedback,
+            iteration_count=final_state.iteration_count,
+            hitl_framing=final_state.hitl_framing or "low_confidence",
         )
         db.add(decision)
         db.commit()
