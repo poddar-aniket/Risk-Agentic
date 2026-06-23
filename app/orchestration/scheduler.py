@@ -64,27 +64,34 @@ ONE_SEEDED_EVENT = {
 }
 
 
-def _get_next_event(config: dict, llm_client, max_candidates: int = 5) -> tuple[dict, dict] | None:
+def _get_next_event(config: dict, llm_client, db, max_candidates: int = 5) -> tuple[dict, dict] | None:
     """Fetches from all active ingestion sources, then runs candidates
     through Event Extraction Agent (in fetch order, across all sources)
     until one comes back is_relevant=True, or max_candidates is reached.
 
-    Returns (raw_article_dict, structured_event_dict) for the first
-    relevant article found. The structured_event is currently discarded
-    by the caller (run_pipeline_once() re-runs Event Extraction inside
-    the graph) -- returning it here anyway keeps this function's
-    contract self-documenting and leaves the door open to wire it
-    through later without changing this signature again.
-
-    Returns None if no relevant article is found within max_candidates
-    tries, or if no sources returned anything at all.
-
-    max_candidates bounds LLM spend per cycle -- each candidate costs
-    one Event Extraction call regardless of relevance, so this is a
-    real, deliberate cap given free-tier quota constraints, not an
-    arbitrary number. Tune via config if it needs adjusting later.
+    Filters out candidate articles that have already been processed by checking
+    against stored raw_article metadata in existing decisions.
     """
     from app.agents.schemas import Event  # local import avoids a cycle with agents importing scheduler indirectly
+
+    # Query existing decision raw article titles and urls to check for duplicates
+    processed_titles = set()
+    processed_urls = set()
+    try:
+        from app.models.decision import Decision
+        existing_decisions = db.query(Decision).all()
+        for d in existing_decisions:
+            if d.structured_event:
+                raw_art = d.structured_event.get("raw_article")
+                if raw_art:
+                    t = raw_art.get("title")
+                    u = raw_art.get("url")
+                    if t:
+                        processed_titles.add(t.strip().lower())
+                    if u:
+                        processed_urls.add(u.strip().lower())
+    except Exception as e:
+        logger.warning("Could not fetch existing decisions for duplicate checking: %s", e)
 
     sources = SourceFactory.create_all(config)
     candidates: list[dict] = []
@@ -104,12 +111,26 @@ def _get_next_event(config: dict, llm_client, max_candidates: int = 5) -> tuple[
         logger.warning("Macro loop: no articles found from any active source this cycle")
         return None
 
+    # Filter out duplicates
+    unique_candidates = []
+    for c in candidates:
+        title = c.get("title", "").strip().lower()
+        url = c.get("url", "").strip().lower() if c.get("url") else ""
+        if title in processed_titles or (url and url in processed_urls):
+            logger.info("Macro loop: skipping duplicate candidate article: %r", c.get("title"))
+            continue
+        unique_candidates.append(c)
+
+    if not unique_candidates:
+        logger.warning("Macro loop: all fetched articles have already been processed.")
+        return None
+
     logger.info(
         "Macro loop: %d candidate article(s) found, checking relevance "
-        "(up to %d candidates)", len(candidates), max_candidates,
+        "(up to %d candidates)", len(unique_candidates), max_candidates,
     )
 
-    for raw_article in candidates[:max_candidates]:
+    for raw_article in unique_candidates[:max_candidates]:
         prompt = EXTRACTION_PROMPT_TEMPLATE.format(
             title=raw_article["title"], content=raw_article["content"],
         )
@@ -125,12 +146,12 @@ def _get_next_event(config: dict, llm_client, max_candidates: int = 5) -> tuple[
 
     logger.warning(
         "Macro loop: no relevant article found among %d candidates this cycle",
-        min(len(candidates), max_candidates),
+        min(len(unique_candidates), max_candidates),
     )
     return None
     
 
-def run_pipeline_once() -> None:
+def run_pipeline_once() -> str:
     """One full macro-loop cycle: build agents, run the graph on the next
     event, persist the resulting Decision + ApprovalQueue rows.
 
@@ -167,10 +188,10 @@ def run_pipeline_once() -> None:
             max_iterations=config["orchestration"]["micro_loop_max_iterations"],
         )
 
-        result = _get_next_event(config, llm_client)
+        result = _get_next_event(config, llm_client, db)
         if result is None:
             logger.info("Macro loop: nothing relevant to process this cycle, skipping")
-            return
+            return "skipped"
 
         raw_article, _extracted_event = result
 
@@ -184,10 +205,14 @@ def run_pipeline_once() -> None:
                 "supervisor_feedback (likely is_relevant=False on the "
                 "extracted event) -- nothing to persist this run."
             )
-            return
+            return "skipped"
 
         proposal = final_state.decision_proposal
         feedback = final_state.supervisor_feedback
+
+        # Save raw_article inside structured_event metadata for future duplicate check
+        se_data = dict(final_state.structured_event) if final_state.structured_event else {}
+        se_data["raw_article"] = raw_article
 
         decision = Decision(
             action_type=proposal["action_type"],
@@ -203,7 +228,7 @@ def run_pipeline_once() -> None:
             suggested_revision=feedback.get("suggested_revision"),
             proportionality_check=feedback["proportionality_check"],
             status="pending",
-            structured_event=final_state.structured_event,
+            structured_event=se_data,
             affected_regions=final_state.affected_regions,
             risk_assessment=final_state.risk_assessment,
             supplier_impact=final_state.supplier_impact,
@@ -227,12 +252,14 @@ def run_pipeline_once() -> None:
             "Macro loop: persisted ApprovalQueue id=%d for decision_id=%d (framing=%s)",
             queue_item.id, decision.id, queue_item.hitl_framing,
         )
+        return "success"
 
     except Exception:
         logger.exception("Macro loop: pipeline run failed")
         raise
     finally:
         db.close()
+
 
 
 def start_scheduler() -> BackgroundScheduler:

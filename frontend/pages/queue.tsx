@@ -14,7 +14,6 @@ export default function QueuePage() {
   const [sortBy, setSortBy] = useState<'newest' | 'highest_risk' | 'urgency'>('urgency');
 
   const fetchQueue = async () => {
-    setLoading(true);
     try {
       const data = await getQueue();
       setQueue(data);
@@ -37,7 +36,7 @@ export default function QueuePage() {
     .filter(item => statusFilter === 'all' || item.status === statusFilter)
     .filter(item => {
       if (riskFilter === 'all') return true;
-      const score = item.risk_assessment?.risk_score || 0;
+      const score = item.risk_assessment?.risk_score || item.risk_assessment?.overall_risk_score || 0;
       if (riskFilter === 'critical') return score >= 8;
       if (riskFilter === 'high') return score >= 6 && score < 8;
       if (riskFilter === 'medium') return score >= 4 && score < 6;
@@ -49,8 +48,8 @@ export default function QueuePage() {
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       }
       if (sortBy === 'highest_risk') {
-        const scoreA = a.risk_assessment?.risk_score || 0;
-        const scoreB = b.risk_assessment?.risk_score || 0;
+        const scoreA = a.risk_assessment?.risk_score || a.risk_assessment?.overall_risk_score || 0;
+        const scoreB = b.risk_assessment?.risk_score || b.risk_assessment?.overall_risk_score || 0;
         return scoreB - scoreA;
       }
       if (sortBy === 'urgency') {
@@ -60,80 +59,105 @@ export default function QueuePage() {
     });
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-[#06080d]">
       <Navbar />
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col md:flex-row gap-8">
+      
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 flex flex-col lg:flex-row gap-8">
         
         {/* Sidebar Filters */}
-        <aside className="w-full md:w-64 shrink-0 space-y-6">
-          <div>
-            <h3 className="text-sm font-semibold text-text-primary mb-3">Status</h3>
-            <div className="flex flex-col gap-2">
-              {['all', 'pending', 'approved', 'rejected'].map(status => (
-                <label key={status} className="flex items-center gap-2 cursor-pointer">
-                  <input 
-                    type="radio" 
-                    name="status" 
-                    className="text-primary focus:ring-primary bg-background border-border"
-                    checked={statusFilter === status} 
-                    onChange={() => setStatusFilter(status as any)} 
-                  />
-                  <span className="text-sm text-text-secondary capitalize">{status}</span>
-                </label>
-              ))}
+        <aside className="w-full lg:w-72 shrink-0 space-y-6">
+          <div className="glass-panel p-6 rounded-2xl border border-white/5 space-y-6">
+            <div>
+              <h2 className="text-xs font-bold text-primary uppercase tracking-widest mb-4">Filters</h2>
+              <h3 className="text-xs font-bold text-text-secondary uppercase tracking-widest mb-3">Status</h3>
+              <div className="flex flex-col gap-2.5">
+                {['all', 'pending', 'approved', 'rejected'].map(status => (
+                  <label key={status} className="flex items-center gap-3 cursor-pointer group">
+                    <input 
+                      type="radio" 
+                      name="status" 
+                      className="w-4 h-4 text-primary focus:ring-primary/40 bg-black/40 border-white/10 checked:bg-primary"
+                      checked={statusFilter === status} 
+                      onChange={() => setStatusFilter(status as any)} 
+                    />
+                    <span className={`text-sm transition-colors capitalize ${
+                      statusFilter === status 
+                        ? 'text-white font-semibold' 
+                        : 'text-text-secondary group-hover:text-text-primary'
+                    }`}>
+                      {status}
+                    </span>
+                  </label>
+                ))}
+              </div>
             </div>
-          </div>
-          
-          <div>
-            <h3 className="text-sm font-semibold text-text-primary mb-3">Risk Score</h3>
-            <div className="flex flex-col gap-2">
-              {[
-                { value: 'all', label: 'All' },
-                { value: 'critical', label: 'Critical (8-10)' },
-                { value: 'high', label: 'High (6-7)' },
-                { value: 'medium', label: 'Medium (4-5)' },
-                { value: 'low', label: 'Low (1-3)' },
-              ].map(risk => (
-                <label key={risk.value} className="flex items-center gap-2 cursor-pointer">
-                  <input 
-                    type="radio" 
-                    name="risk" 
-                    className="text-primary focus:ring-primary bg-background border-border"
-                    checked={riskFilter === risk.value} 
-                    onChange={() => setRiskFilter(risk.value as any)} 
-                  />
-                  <span className="text-sm text-text-secondary">{risk.label}</span>
-                </label>
-              ))}
+            
+            <div className="border-t border-white/5 pt-5">
+              <h3 className="text-xs font-bold text-text-secondary uppercase tracking-widest mb-3">Risk Assessment</h3>
+              <div className="flex flex-col gap-2.5">
+                {[
+                  { value: 'all', label: 'All Risks' },
+                  { value: 'critical', label: 'Critical (8-10)' },
+                  { value: 'high', label: 'High (6-7)' },
+                  { value: 'medium', label: 'Medium (4-5)' },
+                  { value: 'low', label: 'Low (1-3)' },
+                ].map(risk => (
+                  <label key={risk.value} className="flex items-center gap-3 cursor-pointer group">
+                    <input 
+                      type="radio" 
+                      name="risk" 
+                      className="w-4 h-4 text-primary focus:ring-primary/40 bg-black/40 border-white/10 checked:bg-primary"
+                      checked={riskFilter === risk.value} 
+                      onChange={() => setRiskFilter(risk.value as any)} 
+                    />
+                    <span className={`text-sm transition-colors ${
+                      riskFilter === risk.value 
+                        ? 'text-white font-semibold' 
+                        : 'text-text-secondary group-hover:text-text-primary'
+                    }`}>
+                      {risk.label}
+                    </span>
+                  </label>
+                ))}
+              </div>
             </div>
-          </div>
-          
-          <div>
-            <h3 className="text-sm font-semibold text-text-primary mb-3">Sort By</h3>
-            <select 
-              className="w-full bg-surface border border-border rounded-md text-sm text-text-primary p-2 focus:ring-1 focus:ring-primary outline-none"
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
-            >
-              <option value="urgency">Review Urgency</option>
-              <option value="highest_risk">Highest Risk</option>
-              <option value="newest">Newest</option>
-            </select>
+            
+            <div className="border-t border-white/5 pt-5">
+              <h3 className="text-xs font-bold text-text-secondary uppercase tracking-widest mb-3">Sort Priorities</h3>
+              <select 
+                className="w-full bg-[#080b11] border border-white/10 rounded-xl text-xs text-text-primary px-3 py-2.5 focus:border-primary/50 outline-none transition-all duration-300 font-semibold cursor-pointer"
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+              >
+                <option value="urgency">Review Urgency</option>
+                <option value="highest_risk">Highest Risk Assessment</option>
+                <option value="newest">Newest Events</option>
+              </select>
+            </div>
           </div>
         </aside>
 
         {/* Main Content */}
-        <div className="flex-1 space-y-4">
+        <div className="flex-1 space-y-6">
           <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-text-primary">Approval Queue</h1>
-            <span className="text-sm text-text-secondary">{filteredQueue.length} items</span>
+            <div>
+              <span className="text-[10px] font-bold text-primary uppercase tracking-widest">Active Queue</span>
+              <h1 className="text-2xl font-extrabold text-white">Decision Approval Desk</h1>
+            </div>
+            <span className="text-xs font-bold text-text-secondary bg-white/5 border border-white/10 px-3 py-1.5 rounded-xl">
+              {filteredQueue.length} {filteredQueue.length === 1 ? 'item' : 'items'} found
+            </span>
           </div>
 
           {loading ? (
-            <div className="text-center py-12 text-text-secondary">Loading queue...</div>
+            <div className="text-center py-16 text-sm text-text-secondary flex flex-col items-center justify-center gap-3">
+              <div className="w-8 h-8 border-2 border-t-transparent border-primary rounded-full animate-spin"></div>
+              <span>Connecting to database...</span>
+            </div>
           ) : filteredQueue.length === 0 ? (
-            <div className="text-center py-12 text-text-secondary bg-surface border border-border rounded-lg">
-              No decisions found matching the current filters.
+            <div className="text-center py-16 text-sm text-text-secondary glass-panel rounded-2xl border border-white/5 bg-white/[0.01]">
+              <span className="block text-2xl mb-2">📁</span>
+              <span>No decision entries match current filter parameters.</span>
             </div>
           ) : (
             <div className="space-y-4">
@@ -148,3 +172,4 @@ export default function QueuePage() {
     </div>
   );
 }
+
