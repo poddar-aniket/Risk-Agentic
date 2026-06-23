@@ -67,8 +67,18 @@ def reject_decision(decision_id: int, payload: RejectRequest, db: Session = Depe
 
 @router.post("/pipeline/run")
 def trigger_pipeline():
-    import threading
-    thread = threading.Thread(target=run_pipeline_once)
-    thread.daemon = True
-    thread.start()
-    return {"status": "Pipeline triggered successfully. Check /queue in 60 seconds for results."}
+    try:
+        status = run_pipeline_once()
+        if status == "skipped":
+            raise HTTPException(
+                status_code=400,
+                detail="No new relevant articles were found in this ingestion cycle."
+            )
+        return {"status": "Pipeline completed successfully. New decisions added to queue."}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Pipeline execution failed: {str(e)}"
+        )
