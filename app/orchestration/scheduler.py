@@ -64,7 +64,7 @@ ONE_SEEDED_EVENT = {
 }
 
 
-def _get_next_event(config: dict, llm_client, db, max_candidates: int = 5) -> tuple[dict, dict] | None:
+def _get_next_event(config: dict, llm_client, db, max_candidates: int = 3) -> tuple[dict, dict] | None:
     """Fetches from all active ingestion sources, then runs candidates
     through Event Extraction Agent (in fetch order, across all sources)
     until one comes back is_relevant=True, or max_candidates is reached.
