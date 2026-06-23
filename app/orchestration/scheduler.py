@@ -63,18 +63,18 @@ ONE_SEEDED_EVENT = {
     ),
 }
 
-
-def _get_next_event(config: dict, llm_client, db, max_candidates: int = 3) -> tuple[dict, dict] | None:
+def _get_next_event(config: dict, llm_client, db, rag_client, max_candidates: int = 3) -> tuple[dict, dict] | None:
     """Fetches from all active ingestion sources, then runs candidates
     through Event Extraction Agent (in fetch order, across all sources)
     until one comes back is_relevant=True, or max_candidates is reached.
 
     Filters out candidate articles that have already been processed by checking
-    against stored raw_article metadata in existing decisions.
+    against stored raw_article metadata in existing decisions, as well as checking
+    semantic similarity in RAG's past_events collection.
     """
     from app.agents.schemas import Event  # local import avoids a cycle with agents importing scheduler indirectly
 
-    # Query existing decision raw article titles and urls to check for duplicates
+    # Query existing decision raw article titles and urls to check for exact duplicates
     processed_titles = set()
     processed_urls = set()
     try:
@@ -93,32 +93,96 @@ def _get_next_event(config: dict, llm_client, db, max_candidates: int = 3) -> tu
     except Exception as e:
         logger.warning("Could not fetch existing decisions for duplicate checking: %s", e)
 
-    sources = SourceFactory.create_all(config)
+    import os
+    use_mock = os.getenv("USE_MOCK_INGESTION", "false").lower() == "true"
     candidates: list[dict] = []
 
-    for source in sources:
-        try:
-            articles = source.fetch_events()
-        except Exception:
-            logger.exception(
-                "Macro loop: ingestion source %s failed, skipping",
-                type(source).__name__,
-            )
-            continue
-        candidates.extend(a.model_dump(mode="json") for a in articles)
+    if use_mock:
+        logger.info("Macro loop: using mock ingestion source as configured.")
+        candidates = [
+            {
+                "source": "mock_news",
+                "title": "6.4 Magnitude Earthquake Strikes Hsinchu Science Park, Halting Chip Production",
+                "content": (
+                    "A strong 6.4 magnitude earthquake struck Taiwan's Hsinchu region early Tuesday morning, "
+                    "prompting precautionary evacuations and temporary power shutdowns at key semiconductor manufacturing "
+                    "facilities. Officials report minor structural damages to cleanrooms, and production lines have been "
+                    "halted for safety checks. Shipping delays of critical microcontrollers and logic chips are expected "
+                    "to impact global electronics suppliers for the next two weeks."
+                ),
+                "url": "https://mocknews.io/taiwan-earthquake-semiconductors",
+                "published_at": "2026-06-23T08:00:00Z"
+            },
+            {
+                "source": "mock_news",
+                "title": "Rotterdam Port Operations Grind to a Halt as Workers Begin Indefinite Strike",
+                "content": (
+                    "Port operations at the Port of Rotterdam, Europe's largest shipping hub, have come to a standstill "
+                    "following a breakdown in wage negotiations between harbor unions and terminal operators. The labor "
+                    "strike has closed three major container terminals, causing shipping lines to reroute cargo ships to "
+                    "secondary ports. Logistics analysts warn of significant inbound delays of raw materials, chemical compounds, "
+                    "and machinery parts."
+                ),
+                "url": "https://mocknews.io/rotterdam-port-workers-strike",
+                "published_at": "2026-06-23T09:00:00Z"
+            },
+            {
+                "source": "mock_news",
+                "title": "Chennai Industrial Hub cut off by Severe Monsoon Floods",
+                "content": (
+                    "Torrential monsoon rains have triggered severe flooding in Chennai's Oragadam industrial corridor, "
+                    "cutting off major highway routes leading to the Chennai Port. Warehouses and automotive assembly plants "
+                    "have suspended operations due to waterlogging and localized power outages. Fleet management firms report "
+                    "hundreds of container trucks stranded on national highways, disrupting delivery windows of finished assemblies."
+                ),
+                "url": "https://mocknews.io/chennai-monsoon-floods-logistics",
+                "published_at": "2026-06-23T10:00:00Z"
+            }
+        ]
+    else:
+        sources = SourceFactory.create_all(config)
+        for source in sources:
+            try:
+                articles = source.fetch_events()
+            except Exception:
+                logger.exception(
+                    "Macro loop: ingestion source %s failed, skipping",
+                    type(source).__name__,
+                )
+                continue
+            candidates.extend(a.model_dump(mode="json") for a in articles)
 
     if not candidates:
         logger.warning("Macro loop: no articles found from any active source this cycle")
         return None
 
-    # Filter out duplicates
+    # Filter out duplicates (both exact and semantic RAG checks)
     unique_candidates = []
     for c in candidates:
         title = c.get("title", "").strip().lower()
         url = c.get("url", "").strip().lower() if c.get("url") else ""
+        
+        # 1. Exact match checks
         if title in processed_titles or (url and url in processed_urls):
-            logger.info("Macro loop: skipping duplicate candidate article: %r", c.get("title"))
+            logger.info("Macro loop: skipping exact duplicate candidate article: %r", c.get("title"))
             continue
+
+        # 2. Semantic RAG check for similar articles
+        try:
+            results = rag_client.query("past_events", c.get("title", ""), top_k=1)
+            if results:
+                match = results[0]
+                distance = match.get("distance", 1.0)
+                # Cosine distance < 0.20 represents high semantic similarity (e.g. same event reported by another outlet)
+                if distance < 0.20:
+                    logger.info(
+                        "Macro loop: skipping semantically similar article in history (distance=%f): %r",
+                        distance, c.get("title")
+                    )
+                    continue
+        except Exception as re:
+            logger.warning("RAG similarity duplicate check failed: %s", re)
+            
         unique_candidates.append(c)
 
     if not unique_candidates:
@@ -188,7 +252,7 @@ def run_pipeline_once() -> str:
             max_iterations=config["orchestration"]["micro_loop_max_iterations"],
         )
 
-        result = _get_next_event(config, llm_client, db)
+        result = _get_next_event(config, llm_client, db, rag_client)
         if result is None:
             logger.info("Macro loop: nothing relevant to process this cycle, skipping")
             return "skipped"
@@ -242,6 +306,23 @@ def run_pipeline_once() -> str:
         db.refresh(decision)
         logger.info("Macro loop: persisted Decision id=%d", decision.id)
 
+        # Store in RAG past_events collection to block similar duplicates semantically in future runs
+        try:
+            document_text = f"{raw_article['title']}. {raw_article['content']}"
+            rag_client.add(
+                "past_events",
+                documents=[document_text],
+                metadatas=[{
+                    "title": raw_article["title"],
+                    "url": raw_article.get("url") or "",
+                    "is_relevant": 1
+                }],
+                ids=[f"decision_event_{decision.id}"]
+            )
+            logger.info("Macro loop: indexed successfully processed event into RAG past_events")
+        except Exception as e:
+            logger.warning("Failed to store decision in RAG: %s", e)
+
         queue_item = ApprovalQueue(
             decision_id=decision.id,
             hitl_framing=final_state.hitl_framing or "low_confidence",
@@ -254,12 +335,138 @@ def run_pipeline_once() -> str:
         )
         return "success"
 
+
     except Exception:
         logger.exception("Macro loop: pipeline run failed")
         raise
     finally:
         db.close()
+def stream_pipeline():
+    """Generates streaming pipeline execution status events, suitable for SSE."""
+    logger.info("Macro loop: starting streaming pipeline run")
+    db = SessionLocal()
+    try:
+        config = load_config()
+        llm_client = create_llm_client(config)
+        rag_client = RAGClient()
 
+        yield {"status": "ingesting", "message": "Fetching news and weather data feeds..."}
+
+        event_extraction_agent = EventExtractionAgent(llm_client)
+        geo_agent = GeoAgent(llm_client, rag_client)
+        risk_analysis_agent = RiskAnalysisAgent(llm_client, db, rag_client)
+        supplier_agent = SupplierAgent(llm_client, db)
+        decision_agent = DecisionAgent(llm_client, rag_client)
+        supervisor_agent = SupervisorAgent(
+            llm_client,
+            rag_client,
+            confidence_threshold=config["orchestration"]["confidence_threshold"],
+        )
+
+        graph = build_graph(
+            event_extraction_agent,
+            geo_agent,
+            risk_analysis_agent,
+            supplier_agent,
+            decision_agent,
+            supervisor_agent,
+            confidence_threshold=config["orchestration"]["confidence_threshold"],
+            max_iterations=config["orchestration"]["micro_loop_max_iterations"],
+        )
+
+        result = _get_next_event(config, llm_client, db, rag_client)
+        if result is None:
+            logger.info("Macro loop: nothing relevant to process this cycle, skipping")
+            yield {"status": "skipped", "message": "No new relevant articles found in this ingestion cycle."}
+            return
+
+        raw_article, _extracted_event = result
+        yield {"status": "start", "message": f"Article found: \"{raw_article.get('title')[:60]}...\"", "raw_article": raw_article}
+
+        initial_state = PipelineState(raw_article=raw_article)
+        
+        state_accum = dict(initial_state.model_dump())
+        for event in graph.stream(initial_state):
+            node_name = list(event.keys())[0]
+            node_output = event[node_name]
+            state_accum.update(node_output)
+            yield {"status": "progress", "node": node_name, "message": f"Agent node [{node_name}] finished execution."}
+
+        final_state = PipelineState(**state_accum)
+
+        if final_state.decision_proposal is None or final_state.supervisor_feedback is None:
+            logger.warning("Macro loop: pipeline finished with no decision/feedback.")
+            yield {"status": "skipped", "message": "Article analyzed but did not warrant supply chain action proposal."}
+            return
+
+        proposal = final_state.decision_proposal
+        feedback = final_state.supervisor_feedback
+
+        se_data = dict(final_state.structured_event) if final_state.structured_event else {}
+        se_data["raw_article"] = raw_article
+
+        decision = Decision(
+            action_type=proposal["action_type"],
+            target_supplier_name=proposal["target_supplier_name"],
+            target_product=proposal["target_product"],
+            justification=proposal["justification"],
+            magnitude=proposal["magnitude"],
+            estimated_resolution_days=proposal["estimated_resolution_days"],
+            previously_rejected_options_checked=proposal["previously_rejected_options_checked"],
+            confidence_score=feedback["confidence_score"],
+            supervisor_approved=feedback["approved"],
+            critique=feedback["critique"],
+            suggested_revision=feedback.get("suggested_revision"),
+            proportionality_check=feedback["proportionality_check"],
+            status="pending",
+            structured_event=se_data,
+            affected_regions=final_state.affected_regions,
+            risk_assessment=final_state.risk_assessment,
+            supplier_impact=final_state.supplier_impact,
+            decision_proposal=final_state.decision_proposal,
+            supervisor_feedback=final_state.supervisor_feedback,
+            iteration_count=final_state.iteration_count,
+            hitl_framing=final_state.hitl_framing or "low_confidence",
+        )
+        db.add(decision)
+        db.commit()
+        db.refresh(decision)
+        logger.info("Macro loop: persisted Decision id=%d", decision.id)
+
+        # Store in RAG past_events collection to block similar duplicates semantically in future runs
+        try:
+            document_text = f"{raw_article['title']}. {raw_article['content']}"
+            rag_client.add(
+                "past_events",
+                documents=[document_text],
+                metadatas=[{
+                    "title": raw_article["title"],
+                    "url": raw_article.get("url") or "",
+                    "is_relevant": 1
+                }],
+                ids=[f"decision_event_{decision.id}"]
+            )
+            logger.info("Macro loop: indexed successfully processed event into RAG past_events")
+        except Exception as e:
+            logger.warning("Failed to store decision in RAG: %s", e)
+
+        queue_item = ApprovalQueue(
+            decision_id=decision.id,
+            hitl_framing=final_state.hitl_framing or "low_confidence",
+            status="unread",
+        )
+        ApprovalQueueRepository(db).add(queue_item)
+        logger.info(
+            "Macro loop: persisted ApprovalQueue id=%d for decision_id=%d (framing=%s)",
+            queue_item.id, decision.id, queue_item.hitl_framing,
+        )
+        yield {"status": "completed", "message": "Pipeline executed successfully. New decision entry logged.", "decision_id": decision.id}
+
+    except Exception as e:
+        logger.exception("Macro loop: pipeline run failed")
+        yield {"status": "error", "message": f"Pipeline run failed: {str(e)}"}
+    finally:
+        db.close()
 
 
 def start_scheduler() -> BackgroundScheduler:
