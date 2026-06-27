@@ -63,7 +63,7 @@ ONE_SEEDED_EVENT = {
     ),
 }
 
-def _get_next_event(config: dict, llm_client, db, rag_client, max_candidates: int = 3) -> tuple[dict, dict] | None:
+def _get_next_event(config: dict, llm_client, db, rag_client, max_candidates: int = 2) -> tuple[dict, dict] | None:
     """Fetches from all active ingestion sources, then runs candidates
     through Event Extraction Agent (in fetch order, across all sources)
     until one comes back is_relevant=True, or max_candidates is reached.
@@ -156,6 +156,10 @@ def _get_next_event(config: dict, llm_client, db, rag_client, max_candidates: in
         logger.warning("Macro loop: no articles found from any active source this cycle")
         return None
 
+    import random
+    if use_mock:
+        random.shuffle(candidates)
+
     # Filter out duplicates (both exact and semantic RAG checks)
     unique_candidates = []
     for c in candidates:
@@ -163,7 +167,7 @@ def _get_next_event(config: dict, llm_client, db, rag_client, max_candidates: in
         url = c.get("url", "").strip().lower() if c.get("url") else ""
         
         # 1. Exact match checks
-        if title in processed_titles or (url and url in processed_urls):
+        if not use_mock and (title in processed_titles or (url and url in processed_urls)):
             logger.info("Macro loop: skipping exact duplicate candidate article: %r", c.get("title"))
             continue
 
@@ -174,7 +178,7 @@ def _get_next_event(config: dict, llm_client, db, rag_client, max_candidates: in
                 match = results[0]
                 distance = match.get("distance", 1.0)
                 # Cosine distance < 0.20 represents high semantic similarity (e.g. same event reported by another outlet)
-                if distance < 0.20:
+                if not use_mock and distance < 0.20:
                     logger.info(
                         "Macro loop: skipping semantically similar article in history (distance=%f): %r",
                         distance, c.get("title")

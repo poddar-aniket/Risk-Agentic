@@ -9,28 +9,19 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: "#080b11",
-        surface: {
-          DEFAULT: "rgba(17, 24, 39, 0.7)",
-          card: "rgba(22, 30, 49, 0.6)",
-          hover: "rgba(31, 41, 55, 0.8)",
-        },
-        border: {
-          DEFAULT: "rgba(255, 255, 255, 0.08)",
-          glow: "rgba(99, 102, 241, 0.2)",
-        },
+        background: "#f8fafc",
         primary: {
-          DEFAULT: "#6366f1", // Indigo
-          hover: "#4f46e5",
-          glow: "rgba(99, 102, 241, 0.15)",
+          DEFAULT: "#0d9488", // Teal-600
+          hover: "#0f766e", // Teal-700
+          glow: "rgba(13, 148, 136, 0.15)",
         },
         accent: {
-          purple: "#a855f7",
-          cyan: "#06b6d4",
+          purple: "#f59e0b", // Replaced purple with amber
+          cyan: "#0ea5e9", // Sky-500
         },
         text: {
-          primary: "#f3f4f6",
-          secondary: "#9ca3af",
+          primary: "#111827",
+          secondary: "#4b5563",
           muted: "#6b7280",
         },
         success: {
@@ -38,25 +29,25 @@ const config: Config = {
           glow: "rgba(16, 185, 129, 0.2)",
         },
         danger: {
-          DEFAULT: "#f43f5e",
-          glow: "rgba(244, 63, 94, 0.2)",
+          DEFAULT: "#ef4444",
+          glow: "rgba(239, 68, 68, 0.2)",
         },
         warning: {
-          DEFAULT: "#fbbf24",
-          glow: "rgba(251, 191, 36, 0.2)",
+          DEFAULT: "#f59e0b",
+          glow: "rgba(245, 158, 11, 0.2)",
         },
         risk: {
-          critical: "#f43f5e",
+          critical: "#ef4444",
           high: "#f97316",
-          medium: "#eab308",
+          medium: "#f59e0b",
           low: "#10b981",
         }
       },
       boxShadow: {
         glow: "0 0 20px rgba(99, 102, 241, 0.15)",
         "glow-success": "0 0 20px rgba(16, 185, 129, 0.15)",
-        "glow-danger": "0 0 20px rgba(244, 63, 94, 0.15)",
-        glass: "0 8px 32px 0 rgba(0, 0, 0, 0.37)",
+        "glow-danger": "0 0 20px rgba(239, 68, 68, 0.15)",
+        glass: "0 8px 32px 0 rgba(0, 0, 0, 0.05)",
       },
       animation: {
         "pulse-glow": "pulseGlow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
@@ -73,4 +64,3 @@ const config: Config = {
   plugins: [],
 };
 export default config;
-

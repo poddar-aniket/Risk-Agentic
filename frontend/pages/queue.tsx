@@ -59,31 +59,31 @@ export default function QueuePage() {
     });
 
   return (
-    <div className="min-h-screen bg-[#06080d]">
+    <div className="min-h-screen bg-zinc-800">
       <Navbar />
       
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 flex flex-col lg:flex-row gap-8">
         
         {/* Sidebar Filters */}
         <aside className="w-full lg:w-72 shrink-0 space-y-6">
-          <div className="glass-panel p-6 rounded-2xl border border-white/5 space-y-6">
+          <div className="bg-zinc-700 shadow-sm border border-zinc-500 rounded-2xl p-6 space-y-6">
             <div>
-              <h2 className="text-xs font-bold text-primary uppercase tracking-widest mb-4">Filters</h2>
-              <h3 className="text-xs font-bold text-text-secondary uppercase tracking-widest mb-3">Status</h3>
+              <h2 className="text-xs font-bold text-emerald-400 uppercase tracking-widest mb-4">Filters</h2>
+              <h3 className="text-xs font-bold text-zinc-200 uppercase tracking-widest mb-3">Status</h3>
               <div className="flex flex-col gap-2.5">
                 {['all', 'pending', 'approved', 'rejected'].map(status => (
                   <label key={status} className="flex items-center gap-3 cursor-pointer group">
                     <input 
                       type="radio" 
                       name="status" 
-                      className="w-4 h-4 text-primary focus:ring-primary/40 bg-black/40 border-white/10 checked:bg-primary"
+                      className="w-4 h-4 text-emerald-400 focus:ring-emerald-600/40 bg-zinc-700 border-zinc-500 checked:bg-emerald-500"
                       checked={statusFilter === status} 
                       onChange={() => setStatusFilter(status as any)} 
                     />
                     <span className={`text-sm transition-colors capitalize ${
                       statusFilter === status 
-                        ? 'text-white font-semibold' 
-                        : 'text-text-secondary group-hover:text-text-primary'
+                        ? 'text-zinc-50 font-semibold' 
+                        : 'text-zinc-200 group-hover:text-zinc-50'
                     }`}>
                       {status}
                     </span>
@@ -92,8 +92,8 @@ export default function QueuePage() {
               </div>
             </div>
             
-            <div className="border-t border-white/5 pt-5">
-              <h3 className="text-xs font-bold text-text-secondary uppercase tracking-widest mb-3">Risk Assessment</h3>
+            <div className="border-t border-zinc-500 pt-5">
+              <h3 className="text-xs font-bold text-zinc-200 uppercase tracking-widest mb-3">Risk Assessment</h3>
               <div className="flex flex-col gap-2.5">
                 {[
                   { value: 'all', label: 'All Risks' },
@@ -106,14 +106,14 @@ export default function QueuePage() {
                     <input 
                       type="radio" 
                       name="risk" 
-                      className="w-4 h-4 text-primary focus:ring-primary/40 bg-black/40 border-white/10 checked:bg-primary"
+                      className="w-4 h-4 text-emerald-400 focus:ring-emerald-600/40 bg-zinc-700 border-zinc-500 checked:bg-emerald-500"
                       checked={riskFilter === risk.value} 
                       onChange={() => setRiskFilter(risk.value as any)} 
                     />
                     <span className={`text-sm transition-colors ${
                       riskFilter === risk.value 
-                        ? 'text-white font-semibold' 
-                        : 'text-text-secondary group-hover:text-text-primary'
+                        ? 'text-zinc-50 font-semibold' 
+                        : 'text-zinc-200 group-hover:text-zinc-50'
                     }`}>
                       {risk.label}
                     </span>
@@ -122,10 +122,10 @@ export default function QueuePage() {
               </div>
             </div>
             
-            <div className="border-t border-white/5 pt-5">
-              <h3 className="text-xs font-bold text-text-secondary uppercase tracking-widest mb-3">Sort Priorities</h3>
+            <div className="border-t border-zinc-500 pt-5">
+              <h3 className="text-xs font-bold text-zinc-200 uppercase tracking-widest mb-3">Sort Priorities</h3>
               <select 
-                className="w-full bg-[#080b11] border border-white/10 rounded-xl text-xs text-text-primary px-3 py-2.5 focus:border-primary/50 outline-none transition-all duration-300 font-semibold cursor-pointer"
+                className="w-full bg-zinc-700 border border-zinc-500 rounded-xl text-xs text-zinc-50 px-3 py-2.5 focus:border-emerald-600/50 outline-none transition-all duration-300 font-semibold cursor-pointer"
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as any)}
               >
@@ -141,21 +141,21 @@ export default function QueuePage() {
         <div className="flex-1 space-y-6">
           <div className="flex items-center justify-between">
             <div>
-              <span className="text-[10px] font-bold text-primary uppercase tracking-widest">Active Queue</span>
-              <h1 className="text-2xl font-extrabold text-white">Decision Approval Desk</h1>
+              <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">Active Queue</span>
+              <h1 className="text-2xl font-extrabold text-zinc-50">Decision Approval Desk</h1>
             </div>
-            <span className="text-xs font-bold text-text-secondary bg-white/5 border border-white/10 px-3 py-1.5 rounded-xl">
+            <span className="text-xs font-bold text-zinc-200 bg-zinc-800 border border-zinc-500 px-3 py-1.5 rounded-xl">
               {filteredQueue.length} {filteredQueue.length === 1 ? 'item' : 'items'} found
             </span>
           </div>
 
           {loading ? (
-            <div className="text-center py-16 text-sm text-text-secondary flex flex-col items-center justify-center gap-3">
-              <div className="w-8 h-8 border-2 border-t-transparent border-primary rounded-full animate-spin"></div>
+            <div className="text-center py-16 text-sm text-zinc-200 flex flex-col items-center justify-center gap-3">
+              <div className="w-8 h-8 border-2 border-t-transparent border-emerald-600 rounded-full animate-spin"></div>
               <span>Connecting to database...</span>
             </div>
           ) : filteredQueue.length === 0 ? (
-            <div className="text-center py-16 text-sm text-text-secondary glass-panel rounded-2xl border border-white/5 bg-white/[0.01]">
+            <div className="text-center py-16 text-sm text-zinc-200 bg-zinc-800 shadow-sm border border-zinc-500 rounded-2xl">
               <span className="block text-2xl mb-2">📁</span>
               <span>No decision entries match current filter parameters.</span>
             </div>
