@@ -47,39 +47,39 @@ export default function Dashboard() {
     .slice(0, 5);
 
   return (
-    <div className="min-h-screen bg-[#06080d]">
+    <div className="min-h-screen bg-zinc-800">
       <Navbar />
       
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10">
         
         {/* Welcome / Ambient Banner */}
-        <div className="relative glass-panel p-6 sm:p-8 rounded-3xl overflow-hidden border border-white/5 shadow-glow">
-          <div className="absolute -right-20 -top-20 w-80 h-80 rounded-full bg-primary/10 blur-3xl pointer-events-none"></div>
-          <div className="absolute -left-20 -bottom-20 w-80 h-80 rounded-full bg-accent-purple/10 blur-3xl pointer-events-none"></div>
+        <div className="relative bg-zinc-700 shadow-sm border border-zinc-500 p-6 sm:p-8 rounded-3xl overflow-hidden">
+          <div className="absolute -right-20 -top-20 w-80 h-80 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none"></div>
+          <div className="absolute -left-20 -bottom-20 w-80 h-80 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none"></div>
           
           <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div className="space-y-2">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold tracking-widest text-primary bg-primary/10 border border-primary/20 uppercase">
-                <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span> Risk Monitoring active
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold tracking-widest text-emerald-400 bg-emerald-500/10 border border-emerald-600/20 uppercase">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Risk Monitoring active
               </span>
-              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white leading-tight">
+              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-zinc-50 leading-tight">
                 Supply Chain Risk Operations
               </h1>
-              <p className="text-sm text-text-secondary max-w-2xl leading-relaxed">
+              <p className="text-sm text-zinc-200 max-w-2xl leading-relaxed">
                 Autonomous multi-agent risk assessment monitoring events, geo impact, supplier tiering, and supervisor approvals.
               </p>
             </div>
             
             <div className="shrink-0 flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-success animate-ping"></span>
-              <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider">All Systems Operational</span>
+              <span className="text-xs font-semibold text-zinc-200 uppercase tracking-wider">All Systems Operational</span>
             </div>
           </div>
         </div>
 
         {/* Stats Row */}
         <div>
-          <h2 className="text-xs font-bold text-text-secondary uppercase tracking-widest mb-4">System Live Overview</h2>
+          <h2 className="text-xs font-bold text-zinc-200 uppercase tracking-widest mb-4">System Live Overview</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard title="Total Pending Review" value={loading ? '-' : pending.length} />
             <StatCard title="High/Critical Risk" value={loading ? '-' : highCritical.length} highlightColor="amber" />
@@ -91,36 +91,36 @@ export default function Dashboard() {
         {/* Recent Activity */}
         <div>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xs font-bold text-text-secondary uppercase tracking-widest">Recent Activity Log</h2>
-            <Link href="/queue" className="text-xs font-bold text-primary hover:text-white transition-colors">
+            <h2 className="text-xs font-bold text-zinc-200 uppercase tracking-widest">Recent Activity Log</h2>
+            <Link href="/queue" className="text-xs font-bold text-emerald-400 hover:text-zinc-50 transition-colors">
               View Entire Queue →
             </Link>
           </div>
           
-          <div className="glass-panel rounded-2xl overflow-hidden shadow-sm border border-white/5">
+          <div className="bg-zinc-700 shadow-sm border border-zinc-500 rounded-2xl overflow-hidden">
             {loading ? (
-              <div className="p-12 text-center text-sm text-text-secondary flex flex-col items-center justify-center gap-3">
-                <div className="w-6 h-6 border-2 border-t-transparent border-primary rounded-full animate-spin"></div>
+              <div className="p-12 text-center text-sm text-zinc-200 flex flex-col items-center justify-center gap-3">
+                <div className="w-6 h-6 border-2 border-t-transparent border-emerald-600 rounded-full animate-spin"></div>
                 <span>Retrieving active logs...</span>
               </div>
             ) : recentActivity.length === 0 ? (
-              <div className="p-12 text-center text-sm text-text-secondary bg-white/[0.01]">
+              <div className="p-12 text-center text-sm text-zinc-200 bg-zinc-800">
                 No recent activity registered in the database.
               </div>
             ) : (
               <ul className="divide-y divide-white/5">
                 {recentActivity.map(item => (
-                  <li key={item.id} className="hover:bg-white/[0.02] transition-colors duration-200">
+                  <li key={item.id} className="hover:bg-zinc-800 transition-colors duration-200">
                     <Link href="/queue" className="block p-4 sm:p-5">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                         <div className="flex-1 min-w-0 space-y-1">
-                          <p className="text-sm font-bold text-text-primary truncate">
+                          <p className="text-sm font-bold text-zinc-50 truncate">
                             {item.structured_event?.summary || item.justification || 'Unknown Event'}
                           </p>
-                          <p className="text-xs text-text-secondary flex items-center gap-2 flex-wrap">
-                            <span className="bg-white/5 px-2 py-0.5 rounded text-[10px] uppercase font-semibold border border-white/5">{item.action_type}</span>
+                          <p className="text-xs text-zinc-200 flex items-center gap-2 flex-wrap">
+                            <span className="bg-zinc-800 px-2 py-0.5 rounded text-[10px] uppercase font-semibold border border-zinc-500">{item.action_type}</span>
                             <span>•</span>
-                            <span className="font-semibold text-text-primary">{item.target_supplier_name}</span>
+                            <span className="font-semibold text-zinc-50">{item.target_supplier_name}</span>
                             <span>•</span>
                             <span>{item.target_product}</span>
                           </p>
@@ -133,7 +133,7 @@ export default function Dashboard() {
                           }`}>
                             {item.status}
                           </span>
-                          <span className="text-xs text-text-muted font-medium">
+                          <span className="text-xs text-zinc-300 font-medium">
                             {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </span>
                         </div>
@@ -147,15 +147,15 @@ export default function Dashboard() {
         </div>
 
         {/* Pipeline Trigger */}
-        <div className="glass-panel p-6 sm:p-8 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-glow border border-primary/20 relative overflow-hidden bg-gradient-to-r from-primary/5 to-transparent">
+        <div className="bg-zinc-700 shadow-sm border border-zinc-500 rounded-2xl p-6 sm:p-8 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-glow border border-emerald-600/20 relative overflow-hidden bg-gradient-to-r from-primary/5 to-transparent">
           {/* Accent decoration */}
-          <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-primary to-accent-cyan"></div>
+          <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-primary to-emerald-400"></div>
           
           <div className="space-y-1.5">
-            <h3 className="text-base sm:text-lg font-bold text-text-primary flex items-center gap-2">
-              <span>🚀</span> Trigger News & Threat Intelligence Pipeline
+            <h3 className="text-base sm:text-lg font-bold text-zinc-50 flex items-center gap-2">
+              <svg className="w-5 h-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg> Trigger News & Threat Intelligence Pipeline
             </h3>
-            <p className="text-xs text-text-secondary max-w-3xl leading-relaxed">
+            <p className="text-xs text-zinc-200 max-w-3xl leading-relaxed">
               Fetches global news APIs and weather forecasts, runs all 6 agents sequentially, and runs supervisor consensus checking. Evaluated risks will append to the queue.
             </p>
           </div>
@@ -163,11 +163,11 @@ export default function Dashboard() {
           <button
             onClick={handleRunPipeline}
             disabled={isPipelineRunning}
-            className="shrink-0 relative overflow-hidden bg-primary hover:bg-primary-hover text-white font-bold px-6 py-3.5 rounded-xl text-sm transition-all duration-300 shadow-glow disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 border border-primary/30 active:scale-95"
+            className="shrink-0 relative overflow-hidden bg-emerald-500 hover:bg-emerald-500-hover text-zinc-900 font-bold px-6 py-3.5 rounded-xl text-sm transition-all duration-300 shadow-glow disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 border border-emerald-600/30 active:scale-95"
           >
             {isPipelineRunning ? (
               <>
-                <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <svg className="animate-spin h-4 w-4 text-zinc-50" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
