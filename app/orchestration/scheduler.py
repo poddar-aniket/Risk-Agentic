@@ -495,6 +495,6 @@ def start_scheduler() -> BackgroundScheduler:
     # Run once immediately on startup, in addition to the interval above --
     # useful for demos/testing so the queue isn't empty until the first
     # interval elapses.
-    run_pipeline_once()
+    # run_pipeline_once()
 
     return scheduler

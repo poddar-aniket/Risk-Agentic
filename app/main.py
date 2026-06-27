@@ -2,6 +2,7 @@
 FastAPI app entrypoint. Wires together routes, CORS, and DB table creation.
 """
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -22,7 +23,7 @@ Base.metadata.create_all(bind=engine)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    import os
+    # import os
     if os.getenv("ENABLE_SCHEDULER", "false").lower() == "true":
         start_scheduler()
     else:
@@ -36,7 +37,10 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="RiskRadar API", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Next.js dev server
+    allow_origins=[
+        "http://localhost:3000",
+        os.getenv("FRONTEND_URL", ""),
+    ], # Next.js dev server
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
