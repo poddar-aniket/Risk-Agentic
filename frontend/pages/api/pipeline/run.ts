@@ -1,13 +1,12 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 
+const BACKEND = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === 'POST') {
     try {
-      const response = await fetch('http://localhost:8000/pipeline/run', {
-        method: 'POST',
-      });
+      const response = await fetch(`${BACKEND}/pipeline/run`, { method: 'POST' });
 
-      // Set streaming headers
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache, no-transform');
       res.setHeader('Connection', 'keep-alive');
@@ -23,8 +22,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        const chunk = decoder.decode(value);
-        res.write(chunk);
+        res.write(decoder.decode(value));
       }
       res.end();
     } catch (error) {
@@ -35,4 +33,3 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.status(405).end(`Method ${req.method} Not Allowed`);
   }
 }
-

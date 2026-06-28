@@ -1,9 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 
+const BACKEND = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === 'GET') {
     try {
-      const response = await fetch('http://localhost:8000/inventory', { cache: 'no-store' });
+      const response = await fetch(`${BACKEND}/inventory`, { cache: 'no-store' });
       const data = await response.json();
       res.status(response.status).json(data);
     } catch (error) {
@@ -11,11 +13,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   } else if (req.method === 'POST') {
     try {
-      const response = await fetch('http://localhost:8000/inventory', {
+      const response = await fetch(`${BACKEND}/inventory`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(req.body),
       });
       const data = await response.json();

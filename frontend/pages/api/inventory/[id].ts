@@ -1,15 +1,15 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 
+const BACKEND = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { id } = req.query;
 
   if (req.method === 'PUT') {
     try {
-      const response = await fetch(`http://localhost:8000/inventory/${id}`, {
+      const response = await fetch(`${BACKEND}/inventory/${id}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(req.body),
       });
       const data = await response.json();
@@ -19,9 +19,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   } else if (req.method === 'DELETE') {
     try {
-      const response = await fetch(`http://localhost:8000/inventory/${id}`, {
-        method: 'DELETE',
-      });
+      const response = await fetch(`${BACKEND}/inventory/${id}`, { method: 'DELETE' });
       const data = await response.json();
       res.status(response.status).json(data);
     } catch (error) {
