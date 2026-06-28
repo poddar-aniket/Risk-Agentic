@@ -19,6 +19,9 @@ from typing import Optional
 router = APIRouter()
 _rag_client = RAGClient()  # module-level: embedding model load is expensive, load once
 
+@router.get("/health")
+def health():
+    return {"status": "ok"}
 
 class RejectRequest(BaseModel):
     reason: str
@@ -203,4 +206,4 @@ def delete_inventory(inventory_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Inventory not found")
     db.delete(inventory)
     db.commit()
-    return {"ok": True}
+    return {"ok": True}
